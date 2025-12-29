@@ -1,106 +1,74 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Upload, FileText, Loader2, PlayCircle, MessageSquare } from 'lucide-react';
+import { Upload, FileText, Loader2, MessageSquare, CheckCircle2, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CatalogoPage() {
   const [description, setDescription] = useState('');
-  const [isWatchEveryDay, setIsWatchEveryDay] = useState(false);
-  const [priority, setPriority] = useState<number>(1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Simulação da análise (depois conectaremos à sua API)
-  const handleManualAnalyze = async () => {
-    if (!description.trim()) return;
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      alert("Vídeo catalogado com sucesso!");
-    }, 2000);
-  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Cabeçalho da Página com Botão de Voltar */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Catalogar Novo Vídeo</h1>
-          <p className="text-gray-400 text-sm">Use a IA para extrair insights do seu acervo.</p>
+    <div className="max-w-6xl mx-auto w-full space-y-10 py-6 animate-in fade-in duration-700">
+      {/* Header da Página */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-blue-500 font-bold text-xs uppercase tracking-[0.2em]">
+            <Sparkles size={14} />
+            Treinamento de IA
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tight">Novo Conhecimento</h1>
+          <p className="text-gray-500 text-lg">Alimente seu catálogo com vídeos ou transcrições manuais.</p>
         </div>
         
-        {/* Botão para voltar para o Chat */}
-        <Link 
-          href="/" 
-          className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-xl border border-gray-700 transition-all text-sm font-medium"
-        >
-          <MessageSquare size={18} className="text-blue-400" />
-          Voltar para o Chat
+        <Link href="/">
+          <button className="flex items-center gap-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 px-6 py-3 rounded-2xl transition-all group">
+            <MessageSquare size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-bold text-gray-200">Voltar para o Chat</span>
+          </button>
         </Link>
       </div>
 
-      <section className="bg-gray-900/50 p-8 rounded-2xl border border-gray-800 shadow-xl">
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Coluna 1: Upload */}
-          <div className="space-y-4">
-            <label className="block text-sm font-semibold text-gray-300">Upload do Vídeo/Imagem</label>
-            <div className="relative group border-2 border-dashed border-gray-800 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all rounded-xl p-8 text-center cursor-pointer">
-              <Upload className="w-10 h-10 text-gray-600 mx-auto mb-3 group-hover:text-blue-500" />
-              <p className="text-sm text-gray-300 font-medium">Arraste ou clique para enviar</p>
-              <p className="text-xs text-gray-500 mt-1">MP4, MOV, JPG, PNG suportados</p>
-            </div>
+      {/* Grid de Upload */}
+      <div className="grid lg:grid-cols-12 gap-8">
+        {/* Dropzone - Ocupa 5 colunas */}
+        <div className="lg:col-span-5 group relative border-2 border-dashed border-white/5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all duration-500 rounded-[2.5rem] p-12 text-center flex flex-col items-center justify-center bg-gray-900/20 backdrop-blur-sm">
+          <div className="w-24 h-24 bg-white/[0.03] rounded-[2rem] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-600/10 transition-all duration-500 ring-1 ring-white/5">
+            <Upload className="text-blue-500" size={32} />
           </div>
+          <h3 className="text-xl font-bold text-white mb-2">Arquivo de Vídeo</h3>
+          <p className="text-gray-500 text-sm max-w-[200px] leading-relaxed">
+            Arraste seu vídeo aqui para extração automática de insights.
+          </p>
+          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" />
+        </div>
 
-          {/* Coluna 2: Texto */}
+        {/* Formulário - Ocupa 7 colunas */}
+        <div className="lg:col-span-7 bg-gray-900/40 border border-white/5 p-10 rounded-[2.5rem] backdrop-blur-md space-y-8 shadow-2xl">
           <div className="space-y-4">
-            <label className="block text-sm font-semibold text-gray-300">Ou cole a descrição manual</label>
-            <textarea
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-gray-400 uppercase tracking-widest">Descrição ou Transcrição</label>
+              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md font-bold">RECOMENDADO</span>
+            </div>
+            <textarea 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: Palestra sobre o capítulo 5 de Jesus no Lar..."
-              className="w-full h-[124px] p-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
+              className="w-full h-56 bg-gray-950/50 border border-white/5 rounded-[2rem] p-8 text-gray-200 focus:ring-2 focus:ring-blue-500/50 outline-none resize-none transition-all placeholder:text-gray-700 text-lg leading-relaxed"
+              placeholder="Ex: Palestra focada em atitude positiva e renovação espiritual..."
             />
-            <button
-              onClick={handleManualAnalyze}
-              disabled={isAnalyzing || !description.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              disabled={isAnalyzing}
+              className="flex-1 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-[1.5rem] shadow-xl shadow-blue-600/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
             >
-              {isAnalyzing ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-              Analisar com IA
+              {isAnalyzing ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={22} />}
+              Catalogar com Gemini
             </button>
           </div>
         </div>
-
-        {/* Configurações Adicionais */}
-        <div className="mt-8 pt-6 border-t border-gray-800 flex flex-wrap gap-6 items-center">
-          <label className="flex items-center gap-3 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={isWatchEveryDay}
-              onChange={(e) => setIsWatchEveryDay(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
-              Mover para "Assistir Todo Dia"
-            </span>
-          </label>
-
-          {isWatchEveryDay && (
-            <div className="flex items-center gap-3 bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-700">
-              <span className="text-sm font-semibold text-gray-400">Prioridade:</span>
-              <input
-                type="number"
-                min="1"
-                max="99"
-                value={priority}
-                onChange={(e) => setPriority(parseInt(e.target.value))}
-                className="w-16 bg-transparent border-none text-center font-bold text-blue-400 focus:outline-none"
-              />
-            </div>
-          )}
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
