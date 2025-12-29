@@ -5,6 +5,7 @@ import { Category, VideoAnalysis } from "../types";
 const API_KEY = process.env.GEMINI_API_KEY || '';
 console.log("DEBUG: A chave carregada é:", API_KEY ? "SUCESSO (começa com " + API_KEY.substring(0, 5) + ")" : "VAZIA");
 const genAI = new GoogleGenerativeAI(API_KEY);
+const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
 // Tipando explicitamente como ResponseSchema para evitar o erro ts(2322)
 const responseSchema: any = {
@@ -71,6 +72,11 @@ export const analyzeContent = async (
 
   return data as VideoAnalysis;
 };
+
+export async function generateEmbedding(text: string) {
+  const result = await embeddingModel.embedContent(text);
+  return result.embedding.values; // Retorna o array de números
+}
 
 export const analyzeFile = async (
   fileBase64: string, 

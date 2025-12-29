@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  email     String    @unique
+  password  String
+  name      String?
+  catalogs  Catalog[]
+  createdAt DateTime  @default(now())
+}
+
+model Catalog {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  fileName          String   
+  originalName      String?  
+  summary           String   
+  category          String   
+  subcategory       String?
+  subject           String?
+  author            String?
+  isWatchEveryDay   Boolean  @default(false)
+  priority          Int?
+  observations      String?  
+  
+  // Campo para o RAG (Vetorização dos resumos)
+  embedding         Float[]  
+  
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

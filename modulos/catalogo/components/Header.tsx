@@ -1,5 +1,8 @@
+"use client";
+import { signOut, useSession } from "next-auth/react";
 
-import React from 'react';
+export const Header = () => { // Mudança para export const
+  const { data: session } = useSession();
 
 const Header: React.FC = () => {
   return (
@@ -23,5 +26,4 @@ const Header: React.FC = () => {
     </header>
   );
 };
-
-export default Header;
+}
