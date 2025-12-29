@@ -15,8 +15,7 @@ export const Sidebar = () => {
   ];
 
   return (
-    <aside className="w-72 bg-gray-950 border-r border-white/5 flex flex-col h-screen sticky top-0">
-      {/* Logo Section */}
+    <aside className="w-72 bg-blue-950 border-r border-white/10 flex flex-col h-screen sticky top-0">      {/* Logo Section */}
       <div className="p-8">
         <h1 className="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/40">
@@ -43,9 +42,8 @@ export const Sidebar = () => {
           const isActive = pathname === item.href;
           return (
             <Link key={item.name} href={item.href}>
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                isActive ? 'bg-blue-600/10 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-              }`}>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive ? 'bg-blue-600/10 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                }`}>
                 <span className={isActive ? 'text-blue-400' : 'group-hover:text-white transition-colors'}>
                   {item.icon}
                 </span>

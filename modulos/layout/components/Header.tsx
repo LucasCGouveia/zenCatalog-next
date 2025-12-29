@@ -7,18 +7,15 @@ export const Header = () => {
   const { data: session } = useSession();
 
   return (
-    <header className="flex h-20 items-center justify-between border-b border-white/5 bg-gray-950/50 px-8 backdrop-blur-xl sticky top-0 z-40">
+    <header className="flex h-20 items-center justify-between border-b border-white/5 bg-blue-950/50 px-8 backdrop-blur-xl sticky top-0 z-40">
       {/* Search Bar - Estilo Command Palette */}
-      <div className="flex-1 max-w-md hidden md:flex items-center gap-3 bg-white/[0.03] border border-white/10 px-4 py-2.5 rounded-2xl text-gray-500 focus-within:border-blue-500/50 focus-within:bg-white/[0.05] transition-all group">
+      <div className="flex-1 max-w-md hidden md:flex items-center gap-3 bg-white/[0.80] border border-white/10 px-4 py-2.5 rounded-2xl text-gray-500 focus-within:border-blue-500/50 focus-within:bg-white/[0.05] transition-all group">
         <Search size={18} className="group-focus-within:text-blue-500 transition-colors" />
         <input 
           type="text" 
           placeholder="Pesquisar na biblioteca..." 
           className="bg-transparent border-none outline-none text-sm w-full text-white placeholder-gray-600"
         />
-        <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px] font-medium text-gray-500">
-          ⌘K
-        </kbd>
       </div>
 
       {/* Ações e Perfil */}

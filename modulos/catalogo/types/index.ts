@@ -14,6 +14,7 @@ export interface VideoAnalysis {
   author: string;
   suggestedFilename: string;
   summary: string;
+  duration?: string;
   priority?: number;
 }
 

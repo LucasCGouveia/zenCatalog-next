@@ -35,35 +35,40 @@ const responseSchema: any = {
     summary: { 
       type: SchemaType.STRING,
       description: "Resumo do conteúdo"
+    },
+    duration:{
+      type: SchemaType.STRING,
+      description: "Duração aproximada (ex: 05:20)"
     }
   },
-  required: ["category", "subcategory", "subject", "author", "suggestedFilename", "summary"]
+  required: ["category", "subcategory", "subject", "author", "suggestedFilename", "summary", "duration"]
 };
+
+const model = genAI.getGenerativeModel({
+  //model: "gemini-1.5-flash", 
+  model: "gemini-3-flash-preview",
+  generationConfig: {
+    responseMimeType: "application/json",
+    responseSchema: responseSchema,
+  },
+});
 
 export const analyzeContent = async (
   description: string, 
   isWatchEveryDay: boolean,
-  priorityValue?: number
+  priorityValue?: number,
+  customPrompt?: string // <-- Aceita o prompt do banco
 ): Promise<VideoAnalysis> => {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3-flash-preview",
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: responseSchema,
-    },
-  });
+  const basePrompt = customPrompt || `Atue como um especialista em catalogação...`;
   
   const prompt = `
-    Atue como um especialista em catalogação de vídeos de espiritualidade e educação.
+    ${basePrompt}
     Analise: "${description}"
-    Regras: [CATEGORIA] Subcategoria - Assunto - Autor.mp4
-    Categorias: [ESP], [HIST], [FILO], [DICA], [POEMA].
     Config: Assistir Todo Dia = ${isWatchEveryDay}, Prioridade = ${priorityValue}.
   `;
 
   const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const data = JSON.parse(response.text());
+  const data = JSON.parse(result.response.text());
   
   if (isWatchEveryDay && priorityValue) {
     const prefix = priorityValue.toString().padStart(2, '0');
@@ -79,11 +84,7 @@ export async function generateEmbedding(text: string) {
 }
 
 export const analyzeFile = async (
-  fileBase64: string, 
-  mimeType: string, 
-  isWatchEveryDay: boolean,
-  priorityValue?: number
-): Promise<VideoAnalysis> => {
+fileBase64: string, mimeType: string, isWatchEveryDay: boolean, priorityValue?: number, promptCustomizado?: string | undefined): Promise<VideoAnalysis> => {
   const model = genAI.getGenerativeModel({
     model: "gemini-3-flash-preview",
     generationConfig: {

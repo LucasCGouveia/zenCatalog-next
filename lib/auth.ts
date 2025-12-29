@@ -39,7 +39,7 @@ export const authOptions: NextAuthOptions = {
                     console.log("ERRO: Senha incorreta (Bcrypt retornou false)");
                     return null;
                 }
-                
+
                 // 3. Retorna o objeto do usuário para a sessão
                 return {
                     id: user.id,
@@ -49,6 +49,20 @@ export const authOptions: NextAuthOptions = {
             }
         })
     ],
+    callbacks: {
+        async jwt({ token, user }) {
+            if (user) {
+                token.id = user.id;
+            }
+            return token;
+        },
+        async session({ session, token }) {
+            if (session.user) {
+                session.user.id = token.id as string;
+            }
+            return session;
+        },
+    },
     pages: {
         // IMPORTANTE: Aqui você usa apenas '/login' (URL pública)
         // O Next.js resolve automaticamente para app/(auth)/login/page.tsx
