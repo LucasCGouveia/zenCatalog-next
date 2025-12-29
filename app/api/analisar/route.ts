@@ -1,54 +1,62 @@
 import { NextResponse } from 'next/server';
-import { analyzeContent, analyzeFile, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
+import { analyzeFile, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { description, fileBase64, fileMimeType, isWatchEveryDay, priorityValue, fileName } = body;
+    const { description, fileBase64, fileMimeType, fileName, duration, isWatchEveryDay, priorityValue } = body;
 
-    // 1. BUSCAR O USUÁRIO PRIMEIRO (Para pegar o prompt customizado)
-    // Em produção, usaríamos a sessão do NextAuth. Aqui pegamos o admin como você fez.
+    // 1. Busca o usuário e seu prompt personalizado
     const user = await prisma.user.findFirst();
     if (!user) throw new Error("Usuário não encontrado.");
 
-    // O prompt que o usuário editou na tela de configurações e salvou no banco
-    const promptCustomizado = user.systemPrompt || undefined;
+    // Pegamos o prompt que você editou lá na tela de configurações
+    const customPrompt = user.systemPrompt || undefined;
 
-    // 2. ANÁLISE PELA IA (Passando o prompt do banco)
-    let result;
-    if (fileBase64) {
-      // Adicionamos 'promptCustomizado' como último argumento
-      result = await analyzeFile(fileBase64, fileMimeType, isWatchEveryDay, priorityValue, promptCustomizado);
-    } else {
-      // Adicionamos 'promptCustomizado' como último argumento
-      result = await analyzeContent(description, isWatchEveryDay, priorityValue, promptCustomizado);
+    // 2. Análise obrigatória via Arquivo (já que removemos o analyzeContent)
+    if (!fileBase64) {
+      throw new Error("O envio de um arquivo de vídeo é obrigatório.");
     }
 
-    // 3. GERAÇÃO DE EMBEDDING (Igual ao anterior)
-    const embedding = await generateEmbedding(result.summary);
+    const result = await analyzeFile(
+      fileBase64,
+      fileMimeType,
+      isWatchEveryDay,
+      priorityValue,
+      description, // Aqui entra a observação do usuário
+      customPrompt // Aqui entra as regras de nome de arquivo [ESP], [FILO], etc.
+    );
 
-    // 4. SALVAR NO MONGODB (Agora incluindo a duração)
+    const finalDuration = duration || result.duration;
+
+    // 3. VETORIZAÇÃO INTELIGENTE: Mesclamos o resumo da IA com o que o usuário escreveu
+    // Isso garante que o ChatZen ache o vídeo mesmo que você pesquise por algo que só escreveu na observação
+    const textToVectorize = `Conteúdo: ${result.summary} | Observações do Usuário: ${description}`;
+    const embedding = await generateEmbedding(textToVectorize);
+
+    // 4. Salvar no MongoDB
     const savedItem = await prisma.catalog.create({
       data: {
         fileName: result.suggestedFilename,
-        originalName: fileName || "Descrição Manual",
+        originalName: fileName || "upload_video",
         summary: result.summary,
+        observations: description, // Salvamos sua nota íntima aqui
         category: result.category,
         subcategory: result.subcategory,
         subject: result.subject,
         author: result.author,
-        duration: result.duration, // <--- NOVA LINHA: Salva o tempo que a IA extraiu
+        duration: finalDuration,
         isWatchEveryDay: isWatchEveryDay || false,
         priority: priorityValue || 1,
-        embedding: embedding,
+        embedding: embedding, // Vetor rico (IA + Humano)
         userId: user.id
       }
     });
 
     return NextResponse.json(savedItem);
   } catch (error: any) {
-    console.error("Erro na API de Análise:", error);
+    console.error("Erro na API:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

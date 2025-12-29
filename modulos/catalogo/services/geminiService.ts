@@ -11,32 +11,32 @@ const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" })
 const responseSchema: any = {
   type: SchemaType.OBJECT,
   properties: {
-    category: { 
-      type: SchemaType.STRING, 
+    category: {
+      type: SchemaType.STRING,
       enum: Object.values(Category),
       description: "Categoria do vídeo"
     },
-    subcategory: { 
+    subcategory: {
       type: SchemaType.STRING,
-      description: "Subcategoria ou sentimento" 
+      description: "Subcategoria ou sentimento"
     },
-    subject: { 
+    subject: {
       type: SchemaType.STRING,
       description: "Assunto principal"
     },
-    author: { 
+    author: {
       type: SchemaType.STRING,
       description: "Autor ou orador"
     },
-    suggestedFilename: { 
+    suggestedFilename: {
       type: SchemaType.STRING,
       description: "Nome de arquivo sugerido"
     },
-    summary: { 
+    summary: {
       type: SchemaType.STRING,
       description: "Resumo do conteúdo"
     },
-    duration:{
+    duration: {
       type: SchemaType.STRING,
       description: "Duração aproximada (ex: 05:20)"
     }
@@ -53,56 +53,39 @@ const model = genAI.getGenerativeModel({
   },
 });
 
-export const analyzeContent = async (
-  description: string, 
-  isWatchEveryDay: boolean,
-  priorityValue?: number,
-  customPrompt?: string // <-- Aceita o prompt do banco
-): Promise<VideoAnalysis> => {
-  const basePrompt = customPrompt || `Atue como um especialista em catalogação...`;
-  
-  const prompt = `
-    ${basePrompt}
-    Analise: "${description}"
-    Config: Assistir Todo Dia = ${isWatchEveryDay}, Prioridade = ${priorityValue}.
-  `;
-
-  const result = await model.generateContent(prompt);
-  const data = JSON.parse(result.response.text());
-  
-  if (isWatchEveryDay && priorityValue) {
-    const prefix = priorityValue.toString().padStart(2, '0');
-    data.suggestedFilename = `[${prefix}] ${data.suggestedFilename}`;
-  }
-
-  return data as VideoAnalysis;
-};
-
 export async function generateEmbedding(text: string) {
   const result = await embeddingModel.embedContent(text);
   return result.embedding.values; // Retorna o array de números
 }
 
 export const analyzeFile = async (
-fileBase64: string, mimeType: string, isWatchEveryDay: boolean, priorityValue?: number, promptCustomizado?: string | undefined): Promise<VideoAnalysis> => {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3-flash-preview",
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: responseSchema,
-    },
-  });
+  fileBase64: string,
+  mimeType: string,
+  isWatchEveryDay: boolean,
+  priorityValue?: number,
+  userDescription?: string,
+  customPrompt?: string // Parâmetro recebido da API
+): Promise<VideoAnalysis> => {
 
-  const prompt = `Analise este arquivo e aplique as regras de catalogação espiritual.`;
+  // Instrução mestre: Se houver prompt customizado, ele manda.
+  const promptFinal = `
+  ${customPrompt}
+  
+  INSTRUÇÃO ADICIONAL DE TEMPO:
+  Analise o vídeo por completo. Observe o contador de tempo interno (se disponível) ou a progressão do conteúdo. 
+  Forneça uma estimativa de duração no formato MM:SS.
+  
+  CONTEXTO DO USUÁRIO: "${userDescription}"
+`;
 
   const result = await model.generateContent([
-    { text: prompt },
+    { text: promptFinal },
     { inlineData: { data: fileBase64, mimeType } }
   ]);
 
-  const response = await result.response;
-  const data = JSON.parse(response.text());
+  const data = JSON.parse(result.response.text());
 
+  // Lógica de prioridade no nome do arquivo (opcional)
   if (isWatchEveryDay && priorityValue) {
     const prefix = priorityValue.toString().padStart(2, '0');
     data.suggestedFilename = `[${prefix}] ${data.suggestedFilename}`;

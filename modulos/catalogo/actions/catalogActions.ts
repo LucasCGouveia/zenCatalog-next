@@ -24,3 +24,15 @@ export async function deleteCatalogAction(id: string) {
   await CatalogService.delete(id);
   revalidatePath('/');
 }
+
+export async function updateCatalogAction(id: string, data: any) {
+  try {
+    const result = await CatalogService.update(id, data);
+    revalidatePath('/biblioteca');
+    revalidatePath('/'); // Atualiza a Home também se necessário
+    return { success: true, data: result };
+  } catch (error) {
+    console.error("Erro ao atualizar:", error);
+    return { success: false, error: "Falha ao salvar alterações" };
+  }
+}

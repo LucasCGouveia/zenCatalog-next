@@ -23,5 +23,16 @@ export const CatalogService = {
 
   async delete(id: string) {
     return await prisma.catalog.delete({ where: { id } });
-  }
+  },
+
+  async update(id: string, data: any) {
+    return await prisma.catalog.update({
+      where: { id },
+      data: {
+        summary: data.summary,
+        observations: data.observations,
+        // Você pode adicionar outros campos aqui se quiser editar mais coisas
+      }
+    });
+  },
 };
