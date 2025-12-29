@@ -15,8 +15,8 @@ model User {
   name           String?
   image          String?   
 
-  systemPrompt   String?
-  chatPrompt     String?   
+  systemPrompt   String?   @default("Você é um assistente especializado em organização de biblioteca de vídeos. Analise o conteúdo e sugira uma nomenclatura organizada, resumo e tópicos principais.")
+  chatPrompt     String?   @default("Você é um assistente virtual prestativo. Responda às dúvidas do usuário com base no contexto dos vídeos catalogados e em seu conhecimento geral de forma clara e objetiva.")
   
   catalogs       Catalog[]
   chatMessages   ChatMessage[]
@@ -82,7 +82,7 @@ model Catalog {
   userId            String   @db.ObjectId
   user              User     @relation(fields: [userId], references: [id])
   createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  updatedAt         DateTime? @updatedAt
 }
 
 model ChatMessage {

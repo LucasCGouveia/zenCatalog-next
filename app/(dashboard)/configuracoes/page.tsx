@@ -1,23 +1,25 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Save, Sparkles, RefreshCw } from 'lucide-react';
-import { getUserPrompt, updateSystemPrompt } from '@/modulos/layout/actions/configActions';
+import { Save, Sparkles, MessageSquare, HardDrive, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { getUserPrompts, updatePromptsAction } from '@/modulos/layout/actions/configActions';
 import { useSession } from 'next-auth/react';
 
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
-  const [prompt, setPrompt] = useState("");
+  const [activeTab, setActiveTab] = useState("videos");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [chatPrompt, setChatPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       if (session?.user?.id) {
-        // Buscamos o prompt que está no MongoDB
-        const result = await getUserPrompt(session.user.id);
-        if (result.success) {
-          setPrompt(result.prompt || "");
+        const result = await getUserPrompts(session.user.id);
+        if (result.success && result.prompts) {
+          setSystemPrompt(result.prompts.system);
+          setChatPrompt(result.prompts.chat);
         }
         setIsLoading(false);
       }
@@ -26,57 +28,128 @@ export default function ConfiguracoesPage() {
   }, [session]);
 
   const handleSave = async () => {
-    console.log("ID do usuário:", session?.user?.id); // Verifique se aparece no console do navegador
     if (!session?.user?.id) return;
     setIsSaving(true);
 
-    const result = await updateSystemPrompt(session.user.id, prompt);
+    const result = await updatePromptsAction(session.user.id, systemPrompt, chatPrompt);
 
     if (result.success) {
-      alert("Configurações salvas no MongoDB!");
+      alert("Configurações salvas com sucesso!");
     } else {
       alert("Erro ao salvar: " + result.error);
     }
     setIsSaving(false);
   };
 
-  if (isLoading) return <div className="p-10 text-white">Carregando configurações...</div>;
+  if (isLoading) return <div className="p-10 text-white animate-pulse">Carregando cérebro do ZenCatalog...</div>;
+
+  const tabs = [
+    { id: "videos", label: "Prompt Vídeos", icon: Sparkles },
+    { id: "chat", label: "Prompt ChatZen", icon: MessageSquare },
+    { id: "storage", label: "Armazenamento", icon: HardDrive },
+  ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header>
-        <h1 className="text-3xl font-black text-white">Configurações</h1>
-        <p className="text-slate-400">Personalize o comportamento da sua Inteligência Artificial.</p>
+        <h1 className="text-4xl font-black text-white tracking-tight">Configurações</h1>
+        <p className="text-blue-300/50 font-bold uppercase tracking-widest text-xs mt-2">Ajuste os parâmetros da sua experiência</p>
       </header>
 
-      <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200">
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 text-blue-600 font-bold uppercase tracking-widest text-xs">
-            <Sparkles size={16} />
-            Prompt do Sistema (Análise de Vídeos)
-          </div>
-
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="w-full h-64 bg-slate-50 border border-slate-200 rounded-3xl p-8 text-slate-800 text-lg leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Digite aqui as instruções para a IA..."
-          />
-
+      {/* Navegação por Abas (O seu "Broadcamp") */}
+      <div className="flex bg-blue-950/40 p-1.5 rounded-[2rem] border border-white/5 self-start w-fit">
+        {tabs.map((tab) => (
           <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all"
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-8 py-3.5 rounded-[1.5rem] font-bold text-sm transition-all ${
+              activeTab === tab.id 
+                ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20" 
+                : "text-gray-400 hover:text-white hover:bg-white/5"
+            }`}
           >
-            {isSaving ? <RefreshCw className="animate-spin" /> : <Save size={20} />}
-            Salvar Alterações
+            <tab.icon size={18} />
+            {tab.label}
           </button>
-        </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 min-h-[500px] flex flex-col">
+        
+        {/* CONTEÚDO: PROMPT VÍDEOS */}
+        {activeTab === "videos" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800">Cérebro de Organização</h2>
+              <p className="text-slate-500">Como a IA deve catalogar seus vídeos e sugerir nomenclaturas.</p>
+            </div>
+            <textarea
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="w-full h-80 bg-slate-50 border border-slate-200 rounded-3xl p-8 text-slate-800 text-lg leading-relaxed focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+              placeholder="Instruções para análise técnica..."
+            />
+          </div>
+        )}
+
+        {/* CONTEÚDO: PROMPT CHATZEN */}
+        {activeTab === "chat" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800">Personalidade do ChatZen</h2>
+              <p className="text-slate-500">Defina o tom de voz e a profundidade filosófica do seu mentor.</p>
+            </div>
+            <textarea
+              value={chatPrompt}
+              onChange={(e) => setChatPrompt(e.target.value)}
+              className="w-full h-80 bg-slate-50 border border-slate-200 rounded-3xl p-8 text-slate-800 text-lg leading-relaxed focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-mono"
+              placeholder="Instruções para o chat espiritual..."
+            />
+          </div>
+        )}
+
+        {/* CONTEÚDO: ARMAZENAMENTO */}
+        {activeTab === "storage" && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800">Google Drive</h2>
+              <p className="text-slate-500">Status da conexão para salvamento automático de vídeos.</p>
+            </div>
+            
+            <div className="flex items-center gap-6 p-8 bg-blue-50 border border-blue-100 rounded-[2rem]">
+              <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                <img src="https://authjs.dev/img/providers/google.svg" className="w-10" alt="Google" />
+              </div>
+              <div className="flex-1">
+                <p className="text-slate-900 font-black text-lg">Google Account vinculada</p>
+                <p className="text-blue-600 font-bold flex items-center gap-1.5 mt-1">
+                  <CheckCircle2 size={16} /> Drive pronto para receber arquivos
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2">Espaço do Usuário</p>
+                <span className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-black text-sm">
+                  Vinculado
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BOTÃO SALVAR (Fixo no rodapé do card) */}
+        {activeTab !== "storage" && (
+          <div className="mt-auto pt-8 flex justify-end">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-600/20 flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isSaving ? <RefreshCw className="animate-spin" /> : <Save size={20} />}
+              Salvar Alterações
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
-}
-
-function setIsLoading(arg0: boolean) {
-  throw new Error('Function not implemented.');
 }
