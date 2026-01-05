@@ -15,14 +15,17 @@ export const CatalogService = {
     });
   },
 
-  async listAll() {
+  async listAll(userId: string) { // Adicionado parâmetro userId
     return await prisma.catalog.findMany({
+      where: { userId }, // Filtro essencial adicionado
       orderBy: { createdAt: 'desc' }
     });
   },
 
-  async delete(id: string) {
-    return await prisma.catalog.delete({ where: { id } });
+  async delete(id: string, userId: string) {
+    return await prisma.catalog.delete({
+      where: { id, userId }
+    });
   },
 
   async update(id: string, data: any) {

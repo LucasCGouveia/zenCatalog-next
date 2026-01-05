@@ -1,12 +1,20 @@
 import React from 'react';
 import { CatalogService } from '@/modulos/catalogo/services/catalogService';
 import { LibraryTable } from '@/modulos/biblioteca/components/LibraryTable';
+import { authOptions } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { redirect } from 'next/navigation';
 
 export default async function BibliotecaPage() {
-  // Busca todos os itens do banco
-  const items = await CatalogService.listAll();
+  const session = await getServerSession(authOptions);
 
-return (
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
+
+  const items = await CatalogService.listAll(session.user.id);
+
+  return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
