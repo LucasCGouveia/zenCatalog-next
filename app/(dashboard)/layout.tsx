@@ -1,3 +1,6 @@
+// app/(dashboard)/layout.tsx
+export const dynamic = 'force-dynamic'; // Adicione aqui!
+
 import { Sidebar } from "@/modulos/layout/components/Sidebar";
 import { Header } from "@/modulos/layout/components/Header";
 

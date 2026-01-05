@@ -1,7 +1,7 @@
+// app/(dashboard)/catalogo/page.tsx
 "use client";
-
 import React, { useState } from 'react';
-import { Upload, FileText, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film } from 'lucide-react';
+import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CatalogoPage() {
@@ -82,9 +82,14 @@ export default function CatalogoPage() {
       } else {
         throw new Error(data.error || "Erro desconhecido");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 1. Fazemos o narrowing para extrair a mensagem com segurança
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+
       console.error("Erro no processamento:", error);
-      alert("❌ Erro: " + error.message);
+
+      // 2. Usamos a variável segura no alert
+      alert("❌ Erro: " + errorMessage);
     } finally {
       setIsAnalyzing(false);
     }

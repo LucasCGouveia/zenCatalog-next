@@ -1,8 +1,9 @@
+// app/api/analisar/route.ts
 import { NextResponse } from 'next/server';
 import { analyzeFile, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth"; // Ajustado para importar da lib
 
 export async function POST(request: Request) {
   try {
@@ -21,10 +22,8 @@ export async function POST(request: Request) {
     });
     if (!user) throw new Error("Usuário não encontrado.");
 
-    // Pegamos o prompt que você editou lá na tela de configurações
     const customPrompt = user.systemPrompt || undefined;
 
-    // 2. Análise obrigatória via Arquivo (já que removemos o analyzeContent)
     if (!fileBase64) {
       throw new Error("O envio de um arquivo de vídeo é obrigatório.");
     }
@@ -34,24 +33,21 @@ export async function POST(request: Request) {
       fileMimeType,
       isWatchEveryDay,
       priorityValue,
-      description, // Aqui entra a observação do usuário
-      customPrompt // Aqui entra as regras de nome de arquivo [ESP], [FILO], etc.
+      description,
+      customPrompt
     );
 
     const finalDuration = duration || result.duration;
 
-    // 3. VETORIZAÇÃO INTELIGENTE: Mesclamos o resumo da IA com o que o usuário escreveu
-    // Isso garante que o ChatZen ache o vídeo mesmo que você pesquise por algo que só escreveu na observação
     const textToVectorize = `Conteúdo: ${result.summary} | Observações do Usuário: ${description}`;
     const embedding = await generateEmbedding(textToVectorize);
 
-    // 4. Salvar no MongoDB
     const savedItem = await prisma.catalog.create({
       data: {
         fileName: result.suggestedFilename,
         originalName: fileName || "upload_video",
         summary: result.summary,
-        observations: description, // Salvamos sua nota íntima aqui
+        observations: description,
         category: result.category,
         subcategory: result.subcategory,
         subject: result.subject,
@@ -59,14 +55,18 @@ export async function POST(request: Request) {
         duration: finalDuration,
         isWatchEveryDay: isWatchEveryDay || false,
         priority: priorityValue || 1,
-        embedding: embedding, // Vetor rico (IA + Humano)
+        embedding: embedding,
         userId: user.id
       }
     });
 
     return NextResponse.json(savedItem);
-  } catch (error: any) {
+    
+  } catch (error: unknown) { // Mudado para unknown como você desejava
+    // Lógica para extrair a mensagem de erro de forma segura
+    const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+    
     console.error("Erro na API:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

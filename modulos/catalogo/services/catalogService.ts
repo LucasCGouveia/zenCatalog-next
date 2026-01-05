@@ -28,9 +28,9 @@ export const CatalogService = {
     });
   },
 
-  async update(id: string, data: any) {
+  async update(id: string, data: any, userId: string) {
     return await prisma.catalog.update({
-      where: { id },
+      where: { id, userId },
       data: {
         summary: data.summary,
         observations: data.observations,

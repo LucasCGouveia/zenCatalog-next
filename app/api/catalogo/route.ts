@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth/next";
@@ -16,8 +18,10 @@ export async function GET() {
     });
 
     return NextResponse.json(items);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    // Tratamento seguro do tipo unknown
+    const errorMessage = error instanceof Error ? error.message : "Erro ao buscar catálogo";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -43,7 +47,8 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erro ao apagar vídeo";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

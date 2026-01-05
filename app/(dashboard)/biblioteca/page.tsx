@@ -1,4 +1,5 @@
-import React from 'react';
+export const dynamic = 'force-dynamic';
+
 import { CatalogService } from '@/modulos/catalogo/services/catalogService';
 import { LibraryTable } from '@/modulos/biblioteca/components/LibraryTable';
 import { authOptions } from "@/lib/auth";
