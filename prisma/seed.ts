@@ -1,31 +1,32 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs' // ou 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  const password = '123'
-  const salt = await bcrypt.genSalt(10)
-  const hashedPassword = await bcrypt.hash(password, salt)
+  const hashedPassword = await bcrypt.hash('123456', 10)
 
-  console.log('Gerando novo hash para a senha...');
-
-  // O upsert garante que se o usuário existir, ele ATUALIZE a senha
-  const user = await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: 'admin@zen.com' },
-    update: {
-      password: hashedPassword, // Força a atualização para o HASH
-    },
+    update: {},
     create: {
       email: 'admin@zen.com',
       name: 'Admin Zen',
       password: hashedPassword,
+      systemPrompt: "Você é um organizador de biblioteca espiritual. Padrão: [CATEGORIA] Sub - Assunto - Autor.mp4",
+      chatPrompt: "Você é o ChatZen, um mentor acolhedor baseado na filosofia espírita."
     },
   })
 
-  console.log('✅ Usuário atualizado com sucesso no banco!');
+  console.log({ admin })
 }
 
 main()
-  .catch((e) => console.error(e))
-  .finally(async () => await prisma.$disconnect())
+  .then(async () => {
+    await prisma.$disconnect()
+  })
+  .catch(async (e) => {
+    console.error(e)
+    await prisma.$disconnect()
+    process.exit(1)
+  })

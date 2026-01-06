@@ -7,9 +7,8 @@ export default withAuth({
 });
 
 export const config = { 
-  // O segredo está no matcher: ele deve proteger a home, 
-  // mas NÃO pode incluir a rota /login
+  // ADICIONADO: '|cadastro' na lista de exceções
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|login).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|login|cadastro).*)",
   ] 
 };
