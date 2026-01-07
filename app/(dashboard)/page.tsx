@@ -5,35 +5,51 @@ import { HistoryList } from '@/modulos/catalogo/components/HistoryList';
 import { ChatInterface } from '@/modulos/chat/components/ChatInterface';
 import { CatalogItem } from '@/modulos/catalogo/types';
 import { Sparkles, Library } from 'lucide-react';
-import { askChatZen } from '@/modulos/chat/actions/chatActions'; // Importamos a lógica
+// IMPORTANTE: Adicionei o getChatHistory aqui na importação
+import { askChatZen, getChatHistory } from '@/modulos/chat/actions/chatActions';
 
 export default function Page() {
   const [history, setHistory] = useState<CatalogItem[]>([]);
+  // O estado de mensagens começa vazio, mas será preenchido pelo useEffect abaixo
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Carrega o histórico de arquivos recentes
+  // 1. Carrega o histórico de arquivos recentes (Catálogo)
   useEffect(() => {
     fetch('/api/catalogo')
       .then(res => res.json())
       .then(data => setHistory(Array.isArray(data) ? data : []));
   }, []);
 
-  // Função que conecta o Clique do Botão com a IA e o Banco de Dados
+  // 2. NOVO: Carrega o histórico de CONVERSAS (Chat) assim que o Dashboard abre
+  useEffect(() => {
+    const loadChatMessages = async () => {
+      try {
+        const previousMessages = await getChatHistory();
+        // Só atualiza se houver mensagens para mostrar
+        if (previousMessages && previousMessages.length > 0) {
+          setMessages(previousMessages);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar histórico do chat:", error);
+      }
+    };
+    loadChatMessages();
+  }, []);
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-    // 1. Adiciona a mensagem do usuário na tela imediatamente
+    // Adiciona a mensagem do usuário na tela imediatamente
     const userMsg = { role: 'user' as const, content: text };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
     try {
-      // 2. Chama o "motor" ChatZen (Busca Vetorial + Gemini)
+      // Chama a IA (que agora também salva no banco automaticamente)
       const response = await askChatZen(text);
 
       if (response.success) {
-        // 3. Adiciona a resposta da IA
         setMessages(prev => [...prev, { 
           role: 'assistant' as const, 
           content: response.answer || "Não encontrei informações sobre isso no acervo." 
