@@ -43,7 +43,7 @@ export async function getSessionMessages(sessionId: string) {
         orderBy: { createdAt: 'asc' }
       });
   
-      return messages.map((msg: { role: string; content: unknown; }) => ({
+      return messages.map((msg: { role: string; content: string; }) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content
       }));
@@ -101,7 +101,7 @@ export async function askChatZen(question: string, sessionId?: string) {
                 },
                 { "$project": { "summary": 1, "fileName": 1, "author": 1 } }
               ]
-            }) as any[];
+            }) as unknown as any[];
             
             contextText = contextResults.length > 0
               ? contextResults.map(doc => `Vídeo: ${doc.fileName}\nResumo: ${doc.summary}`).join("\n---\n")
@@ -142,8 +142,8 @@ export async function askChatZen(question: string, sessionId?: string) {
     
         return { success: true, answer, sessionId: currentSessionId }; 
     
-      } catch (error: any) {
-        return { success: false, error: error.message };
+      } catch (error) {
+        return { success: false, error: "erro" };
       }
 }
 
