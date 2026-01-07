@@ -1,10 +1,9 @@
 // app/api/analisar/route.ts
 import { NextResponse } from 'next/server';
-import { analyzeFile, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
+import { analyzeContent, generateEmbedding } from '@/modulos/catalogo/services/geminiService'; // <--- MUDAMOS AQUI
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-// IMPORTANTE: Trazendo o prompt da nova tabela Settings
 import { getSystemPrompt } from "@/modulos/configuracoes/actions/ConfiguracoesActions";
 
 export async function POST(request: Request) {
@@ -22,12 +21,10 @@ export async function POST(request: Request) {
       throw new Error("O envio de um arquivo de vídeo é obrigatório.");
     }
 
-    // --- 1. BUSCA O "CÉREBRO" (Prompt Configurado) ---
-    // Essa função busca na tabela Settings ou retorna o padrão do Schema
+    // --- 1. BUSCA O PROMPT ---
     const baseSystemPrompt = await getSystemPrompt();
 
     // --- 2. BUSCA O CONTEXTO (Arquivos Existentes) ---
-    // Buscamos os nomes dos últimos 50 arquivos para a IA entender a sequência (ex: se já tem aula 01, sugere a 02)
     const existingFiles = await prisma.catalog.findMany({
       where: { userId: session.user.id },
       select: { fileName: true },
@@ -35,29 +32,27 @@ export async function POST(request: Request) {
       take: 50
     });
 
-    const existingFilesList = existingFiles.map((f: { fileName: unknown; }) => f.fileName).join("\n");
+    const existingFilesList = existingFiles.map((f: { fileName: any; }) => f.fileName).join("\n");
 
-    // --- 3. MONTA O PROMPT FINAL COMBINADO ---
+    // --- 3. MONTA O PROMPT FINAL ---
     const combinedPrompt = `
       ${baseSystemPrompt}
 
       ### CONTEXTO DO ACERVO ATUAL (Para verificação de sequência):
-      Abaixo estão os arquivos que JÁ existem na biblioteca do usuário. 
-      Use esta lista para decidir numerações sequenciais (ex: se já existe "Aula 01", nomeie o novo como "Aula 02").
-      
       LISTA DE ARQUIVOS EXISTENTES:
       ${existingFilesList}
     `;
 
-    // --- 4. CHAMA O SERVIÇO DO GEMINI ---
-    const result = await analyzeFile(
-      fileBase64,
-      fileMimeType,
-      isWatchEveryDay,
-      priorityValue,
-      description,
-      combinedPrompt // Passamos o prompt turbinado aqui
-    );
+    // --- 4. CHAMA O SERVIÇO DO GEMINI (ATUALIZADO) ---
+    // Agora passamos um objeto de opções, não mais argumentos soltos
+    const result = await analyzeContent({
+      contentBase64: fileBase64,
+      mimeType: fileMimeType,
+      isWatchEveryDay: isWatchEveryDay,
+      priorityValue: priorityValue,
+      userDescription: description,
+      customPrompt: combinedPrompt
+    });
 
     const finalDuration = duration || result.duration;
 
@@ -86,7 +81,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(savedItem);
     
-  } catch (error: unknown) {
+  } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
     console.error("Erro na API:", error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });

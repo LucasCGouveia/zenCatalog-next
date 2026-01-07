@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Trash2, Clock, Search, Filter, Info } from 'lucide-react';
-import { deleteCatalogAction } from '@/modulos/catalogo/actions/catalogActions';
+import { Trash2, Clock, Search, Filter, Info, Pencil, Youtube } from 'lucide-react'; // Adicionado Youtube
+import { deleteCatalogAction, updateCatalogAction } from '@/modulos/catalogo/actions/catalogActions';
 import { Category } from '@/modulos/catalogo/types';
 import { CatalogModal } from './CatalogModal';
+import { EditTitleModal } from './EditiTitleModal';
 
 interface LibraryTableProps {
   initialItems: any[];
@@ -15,11 +16,12 @@ export const LibraryTable = ({ initialItems }: LibraryTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   
-  // Estados para o Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<any>(null);
 
-  // Lógica de Filtro em tempo real
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [isSavingName, setIsSavingName] = useState(false);
+
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchesSearch = 
@@ -44,14 +46,35 @@ export const LibraryTable = ({ initialItems }: LibraryTableProps) => {
 
   const handleDelete = async (id: string) => {
     if (confirm("Deseja remover este registro do acervo permanentemente?")) {
-      const result = await deleteCatalogAction(id);
+      await deleteCatalogAction(id);
       setItems(items.filter(item => item.id !== id));
+    }
+  };
+
+  const handleRename = async (newName: string) => {
+    if (!editingItem) return;
+    try {
+      setIsSavingName(true);
+      const result = await updateCatalogAction(editingItem.id, { fileName: newName });
+      if (result.success) {
+        setItems(items.map(item => 
+          item.id === editingItem.id ? { ...item, fileName: newName } : item
+        ));
+        setEditingItem(null);
+      } else {
+        alert("Erro ao renomear o arquivo.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao salvar alterações.");
+    } finally {
+      setIsSavingName(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Barra de Ferramentas: Busca e Filtro por Categoria */}
+      {/* Barra de Ferramentas */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -101,16 +124,32 @@ export const LibraryTable = ({ initialItems }: LibraryTableProps) => {
                     </span>
                   </td>
                   <td className="p-6">
-                    <button 
-                      onClick={() => openModal(item)}
-                      className="flex flex-col text-left hover:text-blue-600 transition-colors group/title"
-                    >
-                      <span className="text-slate-900 font-bold line-clamp-1 flex items-center gap-2">
-                        {item.fileName}
-                        <Info size={14} className="opacity-0 group-hover/title:opacity-100 transition-opacity text-blue-400" />
-                      </span>
-                      <span className="text-slate-400 text-xs line-clamp-1">{item.subject || 'Sem assunto'}</span>
-                    </button>
+                    <div className="flex flex-col text-left group/title">
+                      <div className="flex items-center gap-2">
+                        {/* Se tiver URL, mostra ícone do YouTube Clicável */}
+                        {item.videoUrl && (
+                          <a 
+                            href={item.videoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-red-500 hover:text-red-600 hover:scale-110 transition-transform"
+                            title="Assistir no YouTube"
+                            onClick={(e) => e.stopPropagation()} // Evita abrir o modal ao clicar no link
+                          >
+                            <Youtube size={20} />
+                          </a>
+                        )}
+                        
+                        <button onClick={() => openModal(item)} className="text-slate-900 font-bold line-clamp-1 hover:text-blue-600 transition-colors text-left">
+                          {item.fileName}
+                        </button>
+                        
+                        <button onClick={() => openModal(item)}>
+                          <Info size={14} className="opacity-0 group-hover/title:opacity-100 transition-opacity text-blue-400" />
+                        </button>
+                      </div>
+                      <span className="text-slate-400 text-xs line-clamp-1 mt-1">{item.subject || 'Sem assunto'}</span>
+                    </div>
                   </td>
                   <td className="p-6 text-sm text-slate-600 font-medium">
                     {item.author || "—"}
@@ -123,6 +162,13 @@ export const LibraryTable = ({ initialItems }: LibraryTableProps) => {
                   </td>
                   <td className="p-6">
                     <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => setEditingItem(item)}
+                        className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                        title="Renomear"
+                      >
+                        <Pencil size={18} />
+                      </button>
                       <button 
                         onClick={() => handleDelete(item.id)}
                         className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
@@ -139,19 +185,28 @@ export const LibraryTable = ({ initialItems }: LibraryTableProps) => {
           
           {filteredItems.length === 0 && (
             <div className="p-20 text-center text-slate-400">
-              Nenhum item encontrado para os filtros aplicados.
+              Nenhum item encontrado.
             </div>
           )}
         </div>
       </div>
 
-      {/* Componente Modal de Edição isolado */}
       <CatalogModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         item={activeItem}
         onUpdate={handleUpdateItem}
       />
+
+      {editingItem && (
+        <EditTitleModal 
+          isOpen={!!editingItem}
+          onClose={() => setEditingItem(null)}
+          onConfirm={handleRename}
+          currentName={editingItem.fileName}
+          isSaving={isSavingName}
+        />
+      )}
     </div>
   );
 };

@@ -1,13 +1,11 @@
-import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { Category, VideoAnalysis } from "../types";
 
-// Pegando a chave do ambiente (Server Side)
 const API_KEY = process.env.GEMINI_API_KEY || '';
-console.log("DEBUG: A chave carregada é:", API_KEY ? "SUCESSO (começa com " + API_KEY.substring(0, 5) + ")" : "VAZIA");
 const genAI = new GoogleGenerativeAI(API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
-// Tipando explicitamente como ResponseSchema para evitar o erro ts(2322)
+// Schema de Resposta
 const responseSchema: any = {
   type: SchemaType.OBJECT,
   properties: {
@@ -16,79 +14,131 @@ const responseSchema: any = {
       enum: Object.values(Category),
       description: "Categoria do vídeo"
     },
-    subcategory: {
-      type: SchemaType.STRING,
-      description: "Subcategoria ou sentimento"
-    },
-    subject: {
-      type: SchemaType.STRING,
-      description: "Assunto principal"
-    },
-    author: {
-      type: SchemaType.STRING,
-      description: "Autor ou orador"
-    },
-    suggestedFilename: {
-      type: SchemaType.STRING,
-      description: "Nome de arquivo sugerido"
-    },
-    summary: {
-      type: SchemaType.STRING,
-      description: "Resumo do conteúdo"
-    },
-    duration: {
-      type: SchemaType.STRING,
-      description: "Duração aproximada (ex: 05:20)"
-    }
+    subcategory: { type: SchemaType.STRING, description: "Subcategoria" },
+    subject: { type: SchemaType.STRING, description: "Assunto principal" },
+    author: { type: SchemaType.STRING, description: "Autor ou orador" },
+    suggestedFilename: { type: SchemaType.STRING, description: "Nome sugerido seguindo o padrão" },
+    summary: { type: SchemaType.STRING, description: "Resumo" },
+    duration: { type: SchemaType.STRING, description: "Duração (MM:SS)" }
   },
   required: ["category", "subcategory", "subject", "author", "suggestedFilename", "summary", "duration"]
 };
 
-const model = genAI.getGenerativeModel({
-  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-  generationConfig: {
-    responseMimeType: "application/json",
-    responseSchema: responseSchema,
-  },
-});
+// Função auxiliar para instanciar o modelo
+const getModel = (modelName: string) => {
+  return genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+    },
+  });
+};
 
 export async function generateEmbedding(text: string) {
   const result = await embeddingModel.embedContent(text);
-  return result.embedding.values; // Retorna o array de números
+  return result.embedding.values;
 }
 
-export const analyzeFile = async (
-  fileBase64: string,
-  mimeType: string,
-  isWatchEveryDay: boolean,
-  priorityValue?: number,
-  userDescription?: string,
-  customPrompt?: string // Parâmetro recebido da API
-): Promise<VideoAnalysis> => {
+interface AnalyzeOptions {
+  contentBase64?: string;
+  mimeType?: string;
+  transcriptText?: string; 
+  isWatchEveryDay: boolean;
+  priorityValue?: number;
+  userDescription?: string;
+  customPrompt?: string;
+}
 
-  // Instrução mestre: Se houver prompt customizado, ele manda.
+export const analyzeContent = async ({
+  contentBase64,
+  mimeType,
+  transcriptText,
+  isWatchEveryDay,
+  priorityValue,
+  userDescription,
+  customPrompt
+}: AnalyzeOptions): Promise<VideoAnalysis> => {
+
   const promptFinal = `
-  ${customPrompt}
+  ${customPrompt || ''}
   
-  INSTRUÇÃO ADICIONAL DE TEMPO:
-  Analise o vídeo por completo. Observe o contador de tempo interno (se disponível) ou a progressão do conteúdo. 
-  Forneça uma estimativa de duração no formato MM:SS.
+  CONTEXTO DO USUÁRIO: "${userDescription || ''}"
   
-  CONTEXTO DO USUÁRIO: "${userDescription}"
-`;
+  INSTRUÇÃO CRÍTICA DE NOMENCLATURA:
+  O campo 'suggestedFilename' DEVE OBRIGATORIAMENTE conter o nome do AUTOR no final.
+  Padrão: [CATEGORIA] Subcategoria - Assunto - Autor.mp4
+  
+  Analise o conteúdo fornecido (Vídeo, Transcrição ou Metadados) e extraia os metadados.
+  `;
 
-  const result = await model.generateContent([
-    { text: promptFinal },
-    { inlineData: { data: fileBase64, mimeType } }
-  ]);
+  // Monta as partes do payload
+  const parts: any[] = [{ text: promptFinal }];
 
+  if (transcriptText) {
+    parts.push({ text: `CONTEÚDO DE TEXTO (Legenda ou Metadados):\n${transcriptText}` });
+  } else if (contentBase64 && mimeType) {
+    parts.push({ inlineData: { data: contentBase64, mimeType } });
+  }
+
+  // --- LÓGICA DE RETRY COM BACKUP ---
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'; // Recomendado: 1.5-flash
+  const backupModelName = process.env.GEMINI_MODEL_BACKUP; 
+
+  try {
+    // 1. Tenta o Modelo Principal
+    const model = getModel(primaryModelName);
+    const result = await model.generateContent(parts);
+    return processResponse(result, isWatchEveryDay, priorityValue);
+
+  } catch (error: any) {
+    console.warn(`⚠️ Falha no modelo principal (${primaryModelName}):`, error.message);
+
+    // 2. Tenta o Backup
+    if (backupModelName) {
+      console.log(`🔄 Tentando reprocessar com BACKUP: ${backupModelName}...`);
+      try {
+        const backupModel = getModel(backupModelName);
+        const result = await backupModel.generateContent(parts);
+        return processResponse(result, isWatchEveryDay, priorityValue);
+      } catch (backupError: any) {
+        throw new Error(`Erro nos dois modelos. Principal: ${error.message} | Backup: ${backupError.message}`);
+      }
+    }
+    throw error;
+  }
+};
+
+// --- FUNÇÃO DE PROCESSAMENTO E CORREÇÃO (A MÁGICA ACONTECE AQUI) ---
+function processResponse(result: any, isWatchEveryDay: boolean, priorityValue?: number): VideoAnalysis {
   const data = JSON.parse(result.response.text());
 
-  // Lógica de prioridade no nome do arquivo (opcional)
+  // 1. CORREÇÃO DE AUTOR: Se a IA esqueceu o autor no nome, nós forçamos.
+  if (data.author && data.suggestedFilename) {
+    const cleanAuthor = data.author.trim();
+    // Verifica se o nome do autor já está no nome do arquivo (ignorando maiúsculas/minúsculas)
+    const hasAuthorInName = data.suggestedFilename.toLowerCase().includes(cleanAuthor.toLowerCase());
+
+    if (!hasAuthorInName) {
+      // Remove a extensão .mp4 se existir para não ficar ".mp4 - Autor"
+      const nameWithoutExt = data.suggestedFilename.replace(/\.mp4$/i, '');
+      data.suggestedFilename = `${nameWithoutExt} - ${cleanAuthor}.mp4`;
+    }
+  }
+
+  // 2. CORREÇÃO DE EXTENSÃO: Garante que termina com .mp4
+  if (!data.suggestedFilename.toLowerCase().endsWith('.mp4')) {
+    data.suggestedFilename += '.mp4';
+  }
+
+  // 3. Lógica de Prioridade (Watch Every Day)
   if (isWatchEveryDay && priorityValue) {
     const prefix = priorityValue.toString().padStart(2, '0');
-    data.suggestedFilename = `[${prefix}] ${data.suggestedFilename}`;
+    // Verifica se já não colocou o prefixo para evitar duplicidade "[01] [01]..."
+    if (!data.suggestedFilename.startsWith(`[${prefix}]`)) {
+      data.suggestedFilename = `[${prefix}] ${data.suggestedFilename}`;
+    }
   }
 
   return data as VideoAnalysis;
-};
+}

@@ -3,21 +3,25 @@ import { generateEmbedding } from './geminiService';
 
 export const CatalogService = {
   async save(data: any, userId: string) {
+    // CORREÇÃO: Removemos o 'suggestedFilename' que vem da IA mas não existe no Schema do banco
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { suggestedFilename, ...validData } = data;
+
     // Gerar o vetor (embedding) do resumo para o Chat inteligente
-    const embedding = await generateEmbedding(data.summary);
+    const embedding = await generateEmbedding(validData.summary);
 
     return await prisma.catalog.create({
       data: {
-        ...data,
+        ...validData, // Agora enviamos apenas os campos válidos
         embedding,
         userId
       }
     });
   },
 
-  async listAll(userId: string) { // Adicionado parâmetro userId
+  async listAll(userId: string) {
     return await prisma.catalog.findMany({
-      where: { userId }, // Filtro essencial adicionado
+      where: { userId },
       orderBy: { createdAt: 'desc' }
     });
   },
@@ -29,12 +33,16 @@ export const CatalogService = {
   },
 
   async update(id: string, data: any, userId: string) {
+    // Removemos também no update por segurança
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { suggestedFilename, ...validData } = data;
+
     return await prisma.catalog.update({
       where: { id, userId },
       data: {
-        summary: data.summary,
-        observations: data.observations,
-        // Você pode adicionar outros campos aqui se quiser editar mais coisas
+        fileName: validData.fileName,
+        summary: validData.summary,
+        observations: validData.observations,
       }
     });
   },

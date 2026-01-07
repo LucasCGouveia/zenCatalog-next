@@ -4,7 +4,10 @@ export enum Category {
   HIST = '[HIST]',
   FILO = '[FILO]',
   DICA = '[DICA]',
-  POEMA = '[POEMA]'
+  POEMA = '[POEMA]',
+  FAMILY = 'FAMILY',
+  ELA = 'É Ela',
+  OUTROS = 'OUTROS',
 }
 
 export interface VideoAnalysis {
