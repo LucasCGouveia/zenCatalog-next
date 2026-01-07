@@ -1,6 +1,5 @@
-// app/api/analisar/route.ts
 import { NextResponse } from 'next/server';
-import { analyzeContent, generateEmbedding } from '@/modulos/catalogo/services/geminiService'; // <--- MUDAMOS AQUI
+import { analyzeContent, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -21,10 +20,8 @@ export async function POST(request: Request) {
       throw new Error("O envio de um arquivo de vídeo é obrigatório.");
     }
 
-    // --- 1. BUSCA O PROMPT ---
     const baseSystemPrompt = await getSystemPrompt();
 
-    // --- 2. BUSCA O CONTEXTO (Arquivos Existentes) ---
     const existingFiles = await prisma.catalog.findMany({
       where: { userId: session.user.id },
       select: { fileName: true },
@@ -32,19 +29,15 @@ export async function POST(request: Request) {
       take: 50
     });
 
-    const existingFilesList = existingFiles.map((f: { fileName: any; }) => f.fileName).join("\n");
+    // CORREÇÃO 1: Tipagem explícita no map (removendo o 'any')
+    const existingFilesList = existingFiles.map((f: { fileName: string }) => f.fileName).join("\n");
 
-    // --- 3. MONTA O PROMPT FINAL ---
     const combinedPrompt = `
       ${baseSystemPrompt}
-
-      ### CONTEXTO DO ACERVO ATUAL (Para verificação de sequência):
-      LISTA DE ARQUIVOS EXISTENTES:
+      ### CONTEXTO DO ACERVO ATUAL:
       ${existingFilesList}
     `;
 
-    // --- 4. CHAMA O SERVIÇO DO GEMINI (ATUALIZADO) ---
-    // Agora passamos um objeto de opções, não mais argumentos soltos
     const result = await analyzeContent({
       contentBase64: fileBase64,
       mimeType: fileMimeType,
@@ -55,12 +48,9 @@ export async function POST(request: Request) {
     });
 
     const finalDuration = duration || result.duration;
-
-    // Gera o vetor para busca semântica (RAG)
-    const textToVectorize = `Conteúdo: ${result.summary} | Observações do Usuário: ${description}`;
+    const textToVectorize = `Conteúdo: ${result.summary} | Observações: ${description}`;
     const embedding = await generateEmbedding(textToVectorize);
 
-    // Salva no Banco
     const savedItem = await prisma.catalog.create({
       data: {
         fileName: result.suggestedFilename,
@@ -81,7 +71,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(savedItem);
     
-  } catch (error: any) {
+  } catch (error: unknown) { // CORREÇÃO 2: unknown em vez de any
     const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
     console.error("Erro na API:", error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });

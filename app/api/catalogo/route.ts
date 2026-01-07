@@ -18,10 +18,9 @@ export async function GET() {
     });
 
     return NextResponse.json(items);
-  } catch (error: unknown) {
-    // Tratamento seguro do tipo unknown
-    const errorMessage = error instanceof Error ? error.message : "Erro ao buscar catálogo";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch (error) {
+    console.error("Erro na rota catalogo:", error); // <--- Adicione isso para usar a variável
+    return NextResponse.json({ error: "Erro ao processar" }, { status: 500 });
   }
 }
 
@@ -39,14 +38,15 @@ export async function PUT(req: Request) {
     //   where: { id },
     //   data: { title: newTitle } // ou 'description', dependendo do nome do campo
     // });
-    
+
     // Se for array em memória (apenas para teste):
     // items = items.map(item => item.id === id ? { ...item, title: newTitle } : item);
 
     return NextResponse.json({ success: true, message: "Renomeado com sucesso" });
 
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
+    console.error("Erro na rota catalogo:", error); // <--- Adicione isso para usar a variável
+    return NextResponse.json({ error: "Erro ao processar" }, { status: 500 });
   }
 }
 

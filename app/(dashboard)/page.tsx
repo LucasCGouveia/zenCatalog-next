@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChatInterface } from '@/modulos/chat/components/ChatInterface';
-import { Sparkles, MessageSquare, Plus, Clock, Pin, Edit2, Save, X, Trash2 } from 'lucide-react';
+import { Sparkles, MessageSquare, Plus, Clock, Pin, Edit2, Save, X } from 'lucide-react';
 // Importe as novas ações
-import { 
-  askChatZen, 
-  getChatSessions, 
-  getSessionMessages, 
-  renameSessionAction, 
-  togglePinSessionAction 
+import {
+  askChatZen,
+  getChatSessions,
+  getSessionMessages,
+  renameSessionAction,
+  togglePinSessionAction
 } from '@/modulos/chat/actions/chatActions';
 
 type ChatSessionItem = {
@@ -35,7 +35,7 @@ export default function Page() {
 
   const loadSessions = async () => {
     const data = await getChatSessions();
-    setSessions(data as any);
+    setSessions(data);
   };
 
   const handleSelectSession = async (sessionId: string) => {
@@ -75,7 +75,7 @@ export default function Page() {
   const saveTitle = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     if (!editTitle.trim()) return;
-    
+
     await renameSessionAction(sessionId, editTitle);
     setEditingId(null);
     loadSessions(); // Recarrega para mostrar o novo nome
@@ -100,8 +100,8 @@ export default function Page() {
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: "Erro: " + response.error }]);
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
+      console.error("Erro ao carregar dados:", error);
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +124,7 @@ export default function Page() {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-8 items-start">
-        
+
         {/* Chat (Esquerda) */}
         <section className="lg:col-span-8 flex flex-col gap-4">
           <div className="flex items-center justify-between px-4">
@@ -132,7 +132,7 @@ export default function Page() {
               <Sparkles size={18} className="text-yellow-400" />
               {currentSessionId ? 'Em andamento' : 'Nova Conversa'}
             </h2>
-            <button 
+            <button
               onClick={handleNewChat}
               className="text-xs bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold"
             >
@@ -141,10 +141,10 @@ export default function Page() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-[2.5rem] h-[600px] overflow-hidden shadow-2xl">
-             <ChatInterface 
-              messages={messages} 
-              onSendMessage={handleSendMessage} 
-              isLoading={isLoading} 
+            <ChatInterface
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
             />
           </div>
         </section>
@@ -157,7 +157,7 @@ export default function Page() {
               Histórico
             </h3>
           </div>
-          
+
           <div className="bg-gray-900/40 border border-white/5 rounded-[2.5rem] p-4 max-h-[600px] overflow-y-auto custom-scrollbar backdrop-blur-sm space-y-2">
             {sessions.length === 0 ? (
               <div className="text-center text-slate-500 py-8 text-sm">
@@ -168,11 +168,10 @@ export default function Page() {
                 <div
                   key={session.id}
                   onClick={() => handleSelectSession(session.id)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all border group relative cursor-pointer ${
-                    currentSessionId === session.id
+                  className={`w-full text-left p-4 rounded-2xl transition-all border group relative cursor-pointer ${currentSessionId === session.id
                     ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-900/50'
                     : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'
-                  }`}
+                    }`}
                 >
                   {/* Ícone de Pin fixo se estiver pinado */}
                   {session.isPinned && (
@@ -180,33 +179,30 @@ export default function Page() {
                   )}
 
                   <div className="flex items-start gap-3">
-                    <MessageSquare size={18} className={`mt-1 shrink-0 ${
-                      currentSessionId === session.id ? 'text-white' : 'text-blue-400'
-                    }`} />
-                    
+                    <MessageSquare size={18} className={`mt-1 shrink-0 ${currentSessionId === session.id ? 'text-white' : 'text-blue-400'
+                      }`} />
+
                     <div className="flex-1 overflow-hidden">
                       {/* Lógica de Edição: Mostra Input OU Título */}
                       {editingId === session.id ? (
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <input 
+                          <input
                             autoFocus
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
                             className="w-full bg-black/20 text-white text-xs p-1 rounded outline-none border border-white/20"
                           />
-                          <button onClick={(e) => saveTitle(e, session.id)} className="text-green-400 hover:text-green-300"><Save size={14}/></button>
-                          <button onClick={cancelEditing} className="text-red-400 hover:text-red-300"><X size={14}/></button>
+                          <button onClick={(e) => saveTitle(e, session.id)} className="text-green-400 hover:text-green-300"><Save size={14} /></button>
+                          <button onClick={cancelEditing} className="text-red-400 hover:text-red-300"><X size={14} /></button>
                         </div>
                       ) : (
                         <>
-                          <h4 className={`font-bold truncate text-sm pr-6 ${
-                             currentSessionId === session.id ? 'text-white' : 'text-slate-200'
-                          }`}>
+                          <h4 className={`font-bold truncate text-sm pr-6 ${currentSessionId === session.id ? 'text-white' : 'text-slate-200'
+                            }`}>
                             {session.title}
                           </h4>
-                          <p className={`text-[10px] mt-1 ${
-                             currentSessionId === session.id ? 'text-blue-200' : 'text-slate-500'
-                          }`}>
+                          <p className={`text-[10px] mt-1 ${currentSessionId === session.id ? 'text-blue-200' : 'text-slate-500'
+                            }`}>
                             {new Date(session.updatedAt).toLocaleDateString('pt-BR')}
                           </p>
                         </>
@@ -217,14 +213,14 @@ export default function Page() {
                   {/* Ações Hover (Só aparecem quando passa o mouse) */}
                   {!editingId && (
                     <div className="absolute right-2 bottom-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
                         onClick={(e) => handlePin(e, session.id)}
                         className="p-1.5 rounded-lg bg-black/40 text-slate-300 hover:text-yellow-400 hover:bg-black/60"
                         title={session.isPinned ? "Desafixar" : "Fixar Aula"}
                       >
                         <Pin size={12} className={session.isPinned ? "fill-yellow-400 text-yellow-400" : ""} />
                       </button>
-                      <button 
+                      <button
                         onClick={(e) => startEditing(e, session)}
                         className="p-1.5 rounded-lg bg-black/40 text-slate-300 hover:text-white hover:bg-black/60"
                         title="Renomear"

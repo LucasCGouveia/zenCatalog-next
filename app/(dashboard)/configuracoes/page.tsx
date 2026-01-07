@@ -133,6 +133,8 @@ export default function ConfiguracoesPage() {
             
             <div className="flex items-center gap-6 p-8 bg-blue-50 border border-blue-100 rounded-[2rem]">
               <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                {/* Adicione esta linha logo acima da tag img */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="https://authjs.dev/img/providers/google.svg" className="w-10" alt="Google" />
               </div>
               <div className="flex-1">

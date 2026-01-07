@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film, Clock, Library, Youtube, Link as LinkIcon } from 'lucide-react';
+import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film, Library, Youtube, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Toaster, toast } from 'sonner';
 import { HistoryList } from "@/modulos/catalogo/components/HistoryList";
@@ -118,11 +118,12 @@ export default function CatalogoPage() {
         }
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) { // Use unknown
       console.error(error);
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
       toast.error("Falha ao catalogar", {
         id: toastId,
-        description: error.message || "Verifique o vídeo e tente novamente."
+        description: msg || "Verifique o vídeo e tente novamente."
       });
     } finally {
       setIsAnalyzing(false);
@@ -166,8 +167,8 @@ export default function CatalogoPage() {
             <button
               onClick={() => setActiveTab('upload')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'upload'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               <Upload size={16} /> Upload
@@ -175,8 +176,8 @@ export default function CatalogoPage() {
             <button
               onClick={() => setActiveTab('youtube')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'youtube'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/20'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-600/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               <Youtube size={16} /> YouTube
@@ -185,8 +186,8 @@ export default function CatalogoPage() {
 
           {/* Área de Conteúdo Dinâmico */}
           <div className={`flex-1 group relative border-2 transition-all duration-500 rounded-[2.5rem] p-12 text-center flex flex-col items-center justify-center backdrop-blur-sm min-h-[320px] ${(selectedFile || (activeTab === 'youtube' && youtubeUrl))
-              ? (activeTab === 'youtube' ? 'border-red-500/60 bg-red-500/[0.05]' : 'border-blue-500/60 bg-blue-500/[0.05]')
-              : 'border-white/5 border-dashed bg-gray-900/20'
+            ? (activeTab === 'youtube' ? 'border-red-500/60 bg-red-500/[0.05]' : 'border-blue-500/60 bg-blue-500/[0.05]')
+            : 'border-white/5 border-dashed bg-gray-900/20'
             }`}>
 
             {activeTab === 'upload' ? (
@@ -269,8 +270,8 @@ export default function CatalogoPage() {
             onClick={handleCatalog}
             disabled={isAnalyzing}
             className={`w-full py-5 text-white font-black rounded-[1.5rem] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'youtube'
-                ? 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
-                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
+              ? 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
+              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
               }`}
           >
             {isAnalyzing ? (
