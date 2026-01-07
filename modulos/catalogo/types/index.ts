@@ -23,4 +23,7 @@ export interface CatalogItem extends VideoAnalysis {
   timestamp: number;
   isWatchEveryDay: boolean;
   originalName?: string;
+  fileName: string; // <--- O nome real do vídeo
+  createdAt?: string | Date; 
+  updatedAt?: string | Date;
 }

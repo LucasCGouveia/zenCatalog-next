@@ -8,125 +8,183 @@ import { authOptions } from "@/lib/auth";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export async function getChatHistory() {
+// 1. LISTAR (Atualizado com ordenação por PIN)
+export async function getChatSessions() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return [];
 
   try {
-    const history = await prisma.chatMessage.findMany({
+    const chats = await prisma.chatSession.findMany({
       where: { userId: session.user.id },
-      orderBy: { createdAt: 'asc' },
-      take: 50
+      orderBy: [
+        { isPinned: 'desc' }, // Fixados aparecem primeiro
+        { updatedAt: 'desc' } // Depois, os mais recentes
+      ],
+      take: 20
     });
-
-    return history.map((msg: { role: string; content: unknown; }) => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
-    }));
+    return chats;
   } catch (error) {
     return [];
   }
 }
 
-export async function askChatZen(question: string) {
-  try {
+// ... (getSessionMessages e askChatZen continuam IGUAIS, não precisa mexer) ...
+export async function getSessionMessages(sessionId: string) {
+    // ... (mantenha o código anterior aqui)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) throw new Error("Precisa de estar logado.");
-
-    // 1. Busca contexto no banco (Se houver vídeos)
-    const totalVideos = await prisma.catalog.count({ where: { userId: session.user.id } });
-    let contextText = "";
-
-    if (totalVideos > 0) {
-      try {
-        const queryVector = await generateEmbedding(question);
-        const contextResults = await prisma.catalog.aggregateRaw({
-          pipeline: [
-            {
-              "$vectorSearch": {
-                "index": "vector_index",
-                "path": "embedding",
-                "queryVector": queryVector,
-                "numCandidates": 100,
-                "limit": 3,
-                "filter": { "userId": { "$oid": session.user.id } }
-              }
-            },
-            { "$project": { "summary": 1, "fileName": 1, "author": 1, "observations": 1 } }
-          ]
-        }) as any[];
+    if (!session?.user?.id) return [];
   
-        contextText = contextResults.length > 0
-          ? contextResults.map(doc => `Vídeo: ${doc.fileName}\nResumo: ${doc.summary}`).join("\n---\n")
-          : "";
-      } catch (err) {
-        console.warn("Erro ao buscar contexto (índice pendente):", err);
-      }
-    } else {
-      contextText = "Usuário ainda não tem vídeos cadastrados.";
+    try {
+      const messages = await prisma.chatMessage.findMany({
+        where: { 
+          userId: session.user.id,
+          sessionId: sessionId 
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+  
+      return messages.map((msg: { role: string; content: unknown; }) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }));
+    } catch (error) {
+      return [];
     }
+}
 
-    const prompt = `
-      Você é o ChatZen. Responda à pergunta usando o contexto abaixo.
-      Contexto: ${contextText}
-      Pergunta: "${question}"
-    `;
-
-    // 2. LÓGICA DE SELEÇÃO DE MODELO (Prioridade ao .ENV)
+export async function askChatZen(question: string, sessionId?: string) {
+    // ... (Copie a função askChatZen do passo anterior inteira aqui)
+    // Se quiser, posso reenviar ela completa, mas é a mesma lógica de antes.
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) throw new Error("Precisa de estar logado.");
     
-    // Lista base de modelos de fallback
-    const defaultModels = [
-      "gemini-1.5-flash-002", // Estável recente
-      "gemini-1.5-flash",     // Genérico
-      "gemini-pro"            // Legado
-    ];
-
-    // Se tiver algo no .ENV, coloca em PRIMEIRO lugar na lista
-    const envModel = process.env.GEMINI_MODEL;
+        // --- Lógica de Criação de Sessão ---
+        let currentSessionId = sessionId;
     
-    let modelsToTry = envModel 
-      ? [envModel, ...defaultModels] 
-      : defaultModels;
-
-    // Remove duplicatas (ex: se o .env for igual a um da lista)
-    modelsToTry = [...new Set(modelsToTry)];
-
-    let answer = "";
-    let lastError = null;
-
-    console.log("Tentando modelos na ordem:", modelsToTry);
-
-    for (const modelName of modelsToTry) {
-      if (!modelName) continue; // Pula vazios
-
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        answer = result.response.text();
-        console.log(`✅ Sucesso usando modelo: ${modelName}`);
-        break; // Funcionou? Para o loop!
-      } catch (e: any) {
-        console.warn(`⚠️ Falha ao usar ${modelName}: ${e.message}`);
-        lastError = e;
+        // Se não tem sessão (Novo Chat), cria uma agora
+        if (!currentSessionId) {
+          const title = question.length > 30 ? question.substring(0, 30) + "..." : question;
+          const newSession = await prisma.chatSession.create({
+            data: {
+              userId: session.user.id,
+              title: title
+            }
+          });
+          currentSessionId = newSession.id;
+        } else {
+          // Se já existe, atualiza o 'updatedAt' da sessão para ela subir na lista
+          await prisma.chatSession.update({
+            where: { id: currentSessionId },
+            data: { updatedAt: new Date() }
+          });
+        }
+    
+        // --- Busca de Contexto (RAG) ---
+        const totalVideos = await prisma.catalog.count({ where: { userId: session.user.id } });
+        let contextText = "";
+    
+        if (totalVideos > 0) {
+          try {
+            const queryVector = await generateEmbedding(question);
+            const contextResults = await prisma.catalog.aggregateRaw({
+              pipeline: [
+                {
+                  "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": queryVector,
+                    "numCandidates": 100,
+                    "limit": 3,
+                    "filter": { "userId": { "$oid": session.user.id } }
+                  }
+                },
+                { "$project": { "summary": 1, "fileName": 1, "author": 1 } }
+              ]
+            }) as any[];
+            
+            contextText = contextResults.length > 0
+              ? contextResults.map(doc => `Vídeo: ${doc.fileName}\nResumo: ${doc.summary}`).join("\n---\n")
+              : "";
+          } catch (e) { console.warn("Index pendente"); }
+        }
+    
+        const prompt = `
+          Você é o ChatZen, um assistente pedagógico e espiritual.
+          O usuário quer ajuda para montar AULAS e DINÂMICAS.
+          Contexto do Acervo Pessoal (se útil): ${contextText}
+          Pergunta do Usuário: "${question}"
+        `;
+    
+        const envModel = process.env.GEMINI_MODEL;
+        const modelsToTry = envModel 
+          ? [envModel, "gemini-1.5-flash", "gemini-pro"] 
+          : ["gemini-1.5-flash-002", "gemini-1.5-flash", "gemini-pro"];
+    
+        let answer = "";
+        for (const modelName of modelsToTry) {
+          try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            answer = result.response.text();
+            break;
+          } catch (e) {}
+        }
+    
+        if (!answer) throw new Error("IA indisponível.");
+    
+        await prisma.chatMessage.createMany({
+          data: [
+            { role: 'user', content: question, userId: session.user.id, sessionId: currentSessionId },
+            { role: 'assistant', content: answer, userId: session.user.id, sessionId: currentSessionId }
+          ]
+        });
+    
+        return { success: true, answer, sessionId: currentSessionId }; 
+    
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
-    }
+}
 
-    if (!answer) {
-      throw lastError || new Error("Nenhum modelo de IA disponível no momento.");
-    }
+// --- NOVAS FUNÇÕES ---
 
-    // 3. Salva no banco
-    await prisma.chatMessage.createMany({
-      data: [
-        { role: 'user', content: question, userId: session.user.id },
-        { role: 'assistant', content: answer, userId: session.user.id }
-      ]
+// 4. RENOMEAR SESSÃO
+export async function renameSessionAction(sessionId: string, newTitle: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Login necessário" };
+
+  try {
+    await prisma.chatSession.update({
+      where: { id: sessionId, userId: session.user.id },
+      data: { title: newTitle }
+    });
+    return { success: true };
+  } catch (error) {
+    return { error: "Erro ao renomear" };
+  }
+}
+
+// 5. FIXAR/DESAFINAR SESSÃO
+export async function togglePinSessionAction(sessionId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Login necessário" };
+
+  try {
+    // Busca o estado atual para inverter
+    const current = await prisma.chatSession.findUnique({
+      where: { id: sessionId },
+      select: { isPinned: true }
     });
 
-    return { success: true, answer };
+    if (!current) return { error: "Sessão não encontrada" };
 
-  } catch (error: any) {
-    console.error("Erro final no ChatZen:", error);
-    return { success: false, error: "Erro ao conectar com a IA: " + error.message };
+    await prisma.chatSession.update({
+      where: { id: sessionId, userId: session.user.id },
+      data: { isPinned: !current.isPinned }
+    });
+    return { success: true };
+  } catch (error) {
+    return { error: "Erro ao fixar" };
   }
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Sparkles, MessageSquare, HardDrive, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { getUserPrompts, updatePromptsAction } from '@/modulos/layout/actions/configActions';
 import { useSession } from 'next-auth/react';
+import { Toast } from '@/public/components/Toast';
 
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
@@ -12,6 +13,9 @@ export default function ConfiguracoesPage() {
   const [chatPrompt, setChatPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // <--- 2. Estado para controlar a notificação
+  const [toast, setToast] = useState<{ show: boolean, msg: string, type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -33,10 +37,11 @@ export default function ConfiguracoesPage() {
 
     const result = await updatePromptsAction(session.user.id, systemPrompt, chatPrompt);
 
+    // <--- 3. Substituindo Alert por Toast
     if (result.success) {
-      alert("Configurações salvas com sucesso!");
+      setToast({ show: true, msg: "Configurações salvas com sucesso!", type: 'success' });
     } else {
-      alert("Erro ao salvar: " + result.error);
+      setToast({ show: true, msg: "Erro ao salvar: " + result.error, type: 'error' });
     }
     setIsSaving(false);
   };
@@ -50,7 +55,17 @@ export default function ConfiguracoesPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      
+      {/* <--- 4. Renderizando o Toast no topo da tela */}
+      {toast?.show && (
+        <Toast 
+          message={toast.msg} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
       <header>
         <h1 className="text-4xl font-black text-white tracking-tight">Configurações</h1>
         <p className="text-blue-300/50 font-bold uppercase tracking-widest text-xs mt-2">Ajuste os parâmetros da sua experiência</p>

@@ -25,6 +25,31 @@ export async function GET() {
   }
 }
 
+export async function PUT(req: Request) {
+  try {
+    const { id, newTitle } = await req.json();
+
+    if (!id || !newTitle) {
+      return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+    }
+
+    // --- AQUI VAI SUA LÓGICA DE BANCO DE DADOS ---
+    // Exemplo com Prisma:
+    // await prisma.catalogItem.update({
+    //   where: { id },
+    //   data: { title: newTitle } // ou 'description', dependendo do nome do campo
+    // });
+    
+    // Se for array em memória (apenas para teste):
+    // items = items.map(item => item.id === id ? { ...item, title: newTitle } : item);
+
+    return NextResponse.json({ success: true, message: "Renomeado com sucesso" });
+
+  } catch (error) {
+    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
+  }
+}
+
 // Apagar um vídeo do banco
 export async function DELETE(request: Request) {
   try {

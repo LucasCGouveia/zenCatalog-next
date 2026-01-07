@@ -20,7 +20,8 @@ model User {
   
   catalogs       Catalog[]
   chatMessages   ChatMessage[]
-  
+  chatSessions   ChatSession[]
+
   // Relacionamentos para o NextAuth (Onde os tokens realmente moram)
   accounts       Account[]
   sessions       Session[]
@@ -91,5 +92,22 @@ model ChatMessage {
   content   String
   userId    String   @db.ObjectId
   user      User     @relation(fields: [userId], references: [id])
+
+  sessionId String?      @db.ObjectId 
+  session   ChatSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
+}
+
+model ChatSession {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String   // Ex: "Planejamento Aula 1"
+  isPinned  Boolean  @default(false)
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  
+  messages  ChatMessage[] // Uma sessão tem várias mensagens
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

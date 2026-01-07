@@ -1,13 +1,39 @@
 // app/(dashboard)/catalogo/page.tsx
 "use client";
-import React, { useState } from 'react';
-import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film } from 'lucide-react';
+
+import React, { useState, useEffect } from 'react';
+import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film, Clock, Library } from 'lucide-react';
 import Link from 'next/link';
+
+// 1. IMPORT DO TOAST (Biblioteca Sonner)
+import { Toaster, toast } from 'sonner';
+
+import { HistoryList } from "@/modulos/catalogo/components/HistoryList";
+import { CatalogItem } from "@/modulos/catalogo/types";
 
 export default function CatalogoPage() {
   const [description, setDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const [items, setItems] = useState<CatalogItem[]>([]);
+
+  const loadData = async () => {
+    try {
+      const res = await fetch("/api/catalogo");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setItems(data);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar catálogo:", error);
+      // Opcional: toast.error("Falha ao carregar histórico");
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getVideoDuration = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -23,14 +49,12 @@ export default function CatalogoPage() {
     });
   };
 
-  // Helper para converter o vídeo em Base64 para enviar ao Gemini
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const base64String = reader.result as string;
-        // Remove o prefixo data:video/mp4;base64,
         resolve(base64String.split(',')[1]);
       };
       reader.onerror = error => reject(error);
@@ -38,12 +62,18 @@ export default function CatalogoPage() {
   };
 
   const handleCatalog = async () => {
+    // 2. VALIDAÇÃO COM TOAST
     if (!description && !selectedFile) {
-      alert("Por favor, adicione um vídeo ou uma descrição.");
+      toast.warning("Dados incompletos", {
+        description: "Por favor, adicione um vídeo ou uma descrição para a IA analisar.",
+      });
       return;
     }
 
     setIsAnalyzing(true);
+
+    // Toast de carregamento (opcional, mas fica legal)
+    const toastId = toast.loading("Iniciando análise com Gemini...");
 
     try {
       let duration = "00:00";
@@ -76,27 +106,44 @@ export default function CatalogoPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("✅ Catalogado com sucesso! A IA analisou o conteúdo do vídeo.");
+        // 3. SUCESSO COM TOAST (Atualiza o loading anterior ou cria novo)
+        toast.success("Catalogado com sucesso!", {
+          id: toastId, // Substitui o loading
+          description: "A IA analisou e salvou o conteúdo.",
+        });
+        
         setDescription('');
         setSelectedFile(null);
+        loadData(); 
       } else {
         throw new Error(data.error || "Erro desconhecido");
       }
     } catch (error: unknown) {
-      // 1. Fazemos o narrowing para extrair a mensagem com segurança
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-
       console.error("Erro no processamento:", error);
-
-      // 2. Usamos a variável segura no alert
-      alert("❌ Erro: " + errorMessage);
+      
+      // 4. ERRO COM TOAST
+      toast.error("Falha ao catalogar", {
+        id: toastId, // Substitui o loading
+        description: errorMessage,
+      });
     } finally {
       setIsAnalyzing(false);
+      // Garante que o toast de loading suma se algo der errado fora do try/catch (raro)
+      toast.dismiss(toastId); 
     }
   };
 
+  const recentItems = [...items]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 15);
+
   return (
     <div className="max-w-6xl mx-auto w-full space-y-10 py-6 animate-in fade-in duration-700">
+      
+      {/* 5. COMPONENTE TOASTER (Responsável por exibir os avisos) */}
+      <Toaster position="top-right" theme="dark" richColors />
+
       {/* Header da Página */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
@@ -118,7 +165,7 @@ export default function CatalogoPage() {
 
       {/* Grid de Upload */}
       <div className="grid lg:grid-cols-12 gap-8">
-        {/* Dropzone - Ocupa 5 colunas */}
+        {/* Dropzone */}
         <div className={`lg:col-span-5 group relative border-2 border-dashed transition-all duration-500 rounded-[2.5rem] p-12 text-center flex flex-col items-center justify-center backdrop-blur-sm ${selectedFile ? 'border-blue-500/60 bg-blue-500/[0.05]' : 'border-white/5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] bg-gray-900/20'
           }`}>
           {selectedFile ? (
@@ -154,7 +201,7 @@ export default function CatalogoPage() {
           />
         </div>
 
-        {/* Formulário - Ocupa 7 colunas */}
+        {/* Formulário */}
         <div className="lg:col-span-7 bg-gray-900/40 border border-white/5 p-10 rounded-[2.5rem] backdrop-blur-md space-y-8 shadow-2xl">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -190,6 +237,38 @@ export default function CatalogoPage() {
           </div>
         </div>
       </div>
+
+      {/* Histórico de Uploads */}
+      <div className="pt-8 border-t border-white/5 space-y-6">
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <Library size={24} className="text-blue-500" />
+            Últimos Adicionados
+          </h2>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+            {recentItems.length} RECENTES
+          </span>
+        </div>
+
+        <div className="bg-gray-900/20 border border-white/5 rounded-[2.5rem] p-8 backdrop-blur-sm">
+           {items.length === 0 ? (
+             <div className="text-center text-gray-500 py-10">
+               Nenhum item catalogado ainda. Use o formulário acima.
+             </div>
+           ) : (
+             <HistoryList 
+                items={recentItems} 
+                onDelete={async (id) => {
+                  // Opcional: Adicionar Toast aqui também
+                  await fetch(`/api/catalogo?id=${id}`, { method: 'DELETE' });
+                  toast.success("Item removido");
+                  loadData();
+                }} 
+             />
+           )}
+        </div>
+      </div>
+
     </div>
   );
 }
