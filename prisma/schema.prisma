@@ -25,6 +25,7 @@ model User {
   // Relacionamentos para o NextAuth (Onde os tokens realmente moram)
   accounts       Account[]
   sessions       Session[]
+  folders        Folder[]
   
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt // Adicionei para seu controle
@@ -108,6 +109,26 @@ model ChatSession {
   
   messages  ChatMessage[] // Uma sessão tem várias mensagens
   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Folder {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     Note[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Note {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  content   String
+  folderId  String   @db.ObjectId
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

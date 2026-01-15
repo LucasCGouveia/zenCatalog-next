@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PlusCircle, MessageSquare, Library, Settings, Video } from 'lucide-react';
+import { BookOpen } from "lucide-react";
 
 export const Sidebar = () => {
   const pathname = usePathname();
@@ -11,6 +12,7 @@ export const Sidebar = () => {
   const menuItems = [
     { name: 'Chat Zen', href: '/', icon: <MessageSquare size={18} /> },
     { name: 'Minha Biblioteca', href: '/biblioteca', icon: <Library size={18} /> },
+    { name: 'Anotações', href: '/anotacoes', icon: <BookOpen size={18} /> },
     { name: 'Configurações', href: '/configuracoes', icon: <Settings size={18} /> },
   ];
 

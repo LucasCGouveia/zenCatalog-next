@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ChatInterface } from '@/modulos/chat/components/ChatInterface';
+import { ChatInterface } from '@/src/chat/components/ChatInterface';
 import { Sparkles, MessageSquare, Plus, Clock, Pin, Edit2, Save, X } from 'lucide-react';
 // Importe as novas ações
 import {
@@ -10,7 +10,7 @@ import {
   getSessionMessages,
   renameSessionAction,
   togglePinSessionAction
-} from '@/modulos/chat/actions/chatActions';
+} from '@/src/chat/actions/chatActions';
 
 type ChatSessionItem = {
   id: string;

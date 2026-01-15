@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, Sparkles, MessageSquare, HardDrive, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { getUserPrompts, updatePromptsAction } from '@/modulos/layout/actions/configActions';
+import { getUserPrompts, updatePromptsAction } from '@/src/layout/actions/configActions';
 import { useSession } from 'next-auth/react';
 import { Toast } from '@/public/components/Toast';
 

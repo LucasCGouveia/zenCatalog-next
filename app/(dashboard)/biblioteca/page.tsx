@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { CatalogService } from '@/modulos/catalogo/services/catalogService';
-import { LibraryTable } from '@/modulos/biblioteca/components/LibraryTable';
+import { CatalogService } from '@/src/catalogo/services/catalogService';
+import { LibraryTable } from '@/src/biblioteca/components/LibraryTable';
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { redirect } from 'next/navigation';

@@ -1,4 +1,4 @@
-import { RegisterForm } from "@/modulos/auth/components/RegisterForm";
+import { RegisterForm } from "@/src/auth/components/RegisterForm";
 import { Sparkles } from "lucide-react";
 
 export default function RegisterPage() {

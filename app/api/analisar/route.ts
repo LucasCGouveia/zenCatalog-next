@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { analyzeContent, generateEmbedding } from '@/modulos/catalogo/services/geminiService';
+import { analyzeContent, generateEmbedding } from '@/src/catalogo/services/geminiService';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getSystemPrompt } from "@/modulos/configuracoes/actions/ConfiguracoesActions";
+import { getSystemPrompt } from "@/src/configuracoes/actions/ConfiguracoesActions";
 
 export async function POST(request: Request) {
   try {

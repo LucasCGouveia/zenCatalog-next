@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Trash2, Clock, Search, Filter, Info, Pencil, Youtube } from 'lucide-react'; // Adicionado Youtube
-import { deleteCatalogAction, updateCatalogAction } from '@/modulos/catalogo/actions/catalogActions';
-import { Category } from '@/modulos/catalogo/types';
+import { deleteCatalogAction, updateCatalogAction } from '@/src/catalogo/actions/catalogActions';
+import { Category } from '@/src/catalogo/types';
 import { CatalogModal } from './CatalogModal';
 import { EditTitleModal } from './EditiTitleModal';
 

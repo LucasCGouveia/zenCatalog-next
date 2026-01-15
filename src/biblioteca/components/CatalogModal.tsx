@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, FileText, MessageCircle, Save, Loader2, Clock, Pencil, Youtube, ExternalLink } from 'lucide-react'; // Adicionado Youtube e ExternalLink
-import { updateCatalogAction } from '@/modulos/catalogo/actions/catalogActions';
+import { updateCatalogAction } from '@/src/catalogo/actions/catalogActions';
 
 interface CatalogModalProps {
   isOpen: boolean;

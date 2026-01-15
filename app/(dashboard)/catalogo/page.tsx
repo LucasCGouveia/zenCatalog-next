@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Loader2, MessageSquare, CheckCircle2, Sparkles, X, Film, Library, Youtube, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Toaster, toast } from 'sonner';
-import { HistoryList } from "@/modulos/catalogo/components/HistoryList";
-import { CatalogItem } from "@/modulos/catalogo/types";
-import { processYoutubeLink } from '@/modulos/catalogo/actions/youtubeActions'; // Importe a Action
+import { HistoryList } from "@/src/catalogo/components/HistoryList";
+import { CatalogItem } from "@/src/catalogo/types";
+import { processYoutubeLink } from '@/src/catalogo/actions/youtubeActions'; // Importe a Action
 
 export default function CatalogoPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'youtube'>('upload');

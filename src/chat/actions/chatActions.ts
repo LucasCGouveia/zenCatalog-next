@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from "@/lib/prisma";
-import { generateEmbedding } from "@/modulos/catalogo/services/geminiService";
+import { generateEmbedding } from "@/src/catalogo/services/geminiService";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";

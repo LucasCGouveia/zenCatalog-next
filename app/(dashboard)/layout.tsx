@@ -1,8 +1,8 @@
 // app/(dashboard)/layout.tsx
 export const dynamic = 'force-dynamic'; // Adicione aqui!
 
-import { Sidebar } from "@/modulos/layout/components/Sidebar";
-import { Header } from "@/modulos/layout/components/Header";
+import { Sidebar } from "@/src/layout/components/Sidebar";
+import { Header } from "@/src/layout/components/Header";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
