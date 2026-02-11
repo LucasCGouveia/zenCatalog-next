@@ -3,7 +3,8 @@ import { Category, VideoAnalysis } from "../types";
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(API_KEY);
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+const EMBEDDING_MODEL_NAME = process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004";
+const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
 
 // Schema de Resposta
 const responseSchema: any = {
@@ -36,14 +37,19 @@ const getModel = (modelName: string) => {
 };
 
 export async function generateEmbedding(text: string) {
-  const result = await embeddingModel.embedContent(text);
-  return result.embedding.values;
+  try {
+    const result = await embeddingModel.embedContent(text);
+    return result.embedding.values;
+  } catch (error) {
+    console.error("Erro ao gerar embedding:", error);
+    throw error;
+  }
 }
 
 interface AnalyzeOptions {
   contentBase64?: string;
   mimeType?: string;
-  transcriptText?: string; 
+  transcriptText?: string;
   isWatchEveryDay: boolean;
   priorityValue?: number;
   userDescription?: string;
@@ -83,7 +89,7 @@ export const analyzeContent = async ({
 
   // --- LÓGICA DE RETRY COM BACKUP ---
   const primaryModelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'; // Recomendado: 1.5-flash
-  const backupModelName = process.env.GEMINI_MODEL_BACKUP; 
+  const backupModelName = process.env.GEMINI_MODEL_BACKUP;
 
   try {
     // 1. Tenta o Modelo Principal

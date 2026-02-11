@@ -22,14 +22,10 @@ export default function AnotacoesPage() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // <--- NOVO: Controle da Sidebar
-  
+
   // Estado do Editor
   const [editorTitle, setEditorTitle] = useState("");
   const [editorContent, setEditorContent] = useState("");
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   async function loadData() {
     const data = await getFolders();
@@ -80,12 +76,12 @@ export default function AnotacoesPage() {
         await updateNote(selectedNote.id, editorTitle, editorContent);
         toast.success("Nota atualizada!");
       }
-      
+
       const updatedFolders = await getFolders();
       setFolders(updatedFolders as any);
 
       const currentFolder = updatedFolders.find((f: any) => f.id === selectedFolder);
-      
+
       let noteToSelect;
       if (isNewNote) {
         noteToSelect = currentFolder?.notes
@@ -121,9 +117,13 @@ export default function AnotacoesPage() {
     setIsPreview(true);
   }
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
   return (
     <div className="flex h-[calc(100vh-100px)] gap-6 p-6 transition-all">
-      
+
       {/* SIDEBAR: Pastas e Lista de Notas (Com Animação de Largura) */}
       <div className={`
         flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ease-in-out
@@ -132,14 +132,14 @@ export default function AnotacoesPage() {
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center min-w-[250px]">
           <h2 className="font-bold text-slate-700">Minhas Pastas</h2>
           <div className="flex gap-1">
-             <button 
+            <button
               onClick={() => setIsCreatingFolder(!isCreatingFolder)}
               className="p-2 hover:bg-slate-200 rounded-lg text-slate-600"
               title="Nova Pasta"
             >
               <Plus size={18} />
             </button>
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(false)}
               className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 lg:hidden" // Botão fechar extra para mobile
             >
@@ -150,8 +150,8 @@ export default function AnotacoesPage() {
 
         {isCreatingFolder && (
           <form onSubmit={handleCreateFolder} className="p-3 bg-blue-50 border-b border-blue-100 min-w-[250px]">
-             {/* CORREÇÃO: Input com texto escuro */}
-            <input 
+            {/* CORREÇÃO: Input com texto escuro */}
+            <input
               autoFocus
               className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 transition-colors"
               placeholder="Nome da pasta (ex: Semeador)"
@@ -164,12 +164,12 @@ export default function AnotacoesPage() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1 min-w-[250px]">
           {folders.map(folder => (
             <div key={folder.id} className="rounded-lg overflow-hidden">
-              <div 
+              <div
                 className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${selectedFolder === folder.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
                 onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
               >
                 <div className="flex items-center gap-2 font-medium">
-                  {selectedFolder === folder.id ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+                  {selectedFolder === folder.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <Folder size={18} />
                   {folder.name}
                 </div>
@@ -181,9 +181,9 @@ export default function AnotacoesPage() {
               {selectedFolder === folder.id && (
                 <div className="bg-slate-50/50 pl-9 pr-2 py-2 space-y-1 border-l-2 border-blue-100 ml-4">
                   {folder.notes.length === 0 && <p className="text-xs text-slate-400 italic">Nenhuma nota aqui.</p>}
-                  
+
                   {folder.notes.map(note => (
-                    <div 
+                    <div
                       key={note.id}
                       onClick={() => selectNoteToEdit(note)}
                       className="group flex justify-between items-center text-sm py-1.5 px-2 rounded-md hover:bg-white cursor-pointer text-slate-600 hover:text-blue-600"
@@ -193,8 +193,8 @@ export default function AnotacoesPage() {
                       </span>
                     </div>
                   ))}
-                  
-                  <button 
+
+                  <button
                     onClick={handleNewNote}
                     className="w-full text-left text-xs font-bold text-blue-600 hover:text-blue-700 mt-2 px-2 py-1 flex items-center gap-1"
                   >
@@ -211,9 +211,9 @@ export default function AnotacoesPage() {
       <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative transition-all">
         {!selectedNote ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-300 relative">
-             {/* Botão para abrir sidebar mesmo sem nota selecionada */}
-             {!isSidebarOpen && (
-              <button 
+            {/* Botão para abrir sidebar mesmo sem nota selecionada */}
+            {!isSidebarOpen && (
+              <button
                 onClick={() => setIsSidebarOpen(true)}
                 className="absolute top-4 left-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
                 title="Abrir Pastas"
@@ -221,16 +221,16 @@ export default function AnotacoesPage() {
                 <PanelLeft size={20} />
               </button>
             )}
-            
+
             <FileText size={64} className="mb-4 opacity-50" />
             <p>Selecione uma pasta e crie uma nota para começar</p>
           </div>
         ) : (
           <>
             <div className="p-6 border-b border-slate-100 flex items-start gap-4 bg-white z-10">
-              
+
               {/* BOTÃO TOGGLE SIDEBAR (Só aparece se sidebar fechada ou para toggle) */}
-              <button 
+              <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className={`p-2 rounded-lg transition-colors shrink-0 ${isSidebarOpen ? 'text-slate-400 hover:bg-slate-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                 title={isSidebarOpen ? "Esconder Pastas" : "Mostrar Pastas"}
@@ -238,14 +238,14 @@ export default function AnotacoesPage() {
                 <PanelLeft size={20} />
               </button>
 
-              <input 
+              <input
                 type="text"
                 value={editorTitle}
                 onChange={e => setEditorTitle(e.target.value)}
                 placeholder="Título da Aula / Anotação"
                 className="text-2xl font-bold text-slate-800 placeholder:text-slate-300 outline-none flex-1 bg-transparent min-w-0"
               />
-              
+
               <div className="flex gap-2 shrink-0">
                 <button
                   onClick={() => setIsPreview(!isPreview)}
@@ -259,7 +259,7 @@ export default function AnotacoesPage() {
                 <div className="w-px h-8 bg-slate-200 mx-2 hidden sm:block"></div>
 
                 {selectedNote.id !== 'new' && (
-                  <button 
+                  <button
                     onClick={() => handleDeleteNote(selectedNote.id)}
                     className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                     title="Excluir nota"
@@ -267,7 +267,7 @@ export default function AnotacoesPage() {
                     <Trash2 size={20} />
                   </button>
                 )}
-                <button 
+                <button
                   onClick={handleSaveNote}
                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20"
                 >
@@ -280,28 +280,28 @@ export default function AnotacoesPage() {
             {isPreview ? (
               <div className="flex-1 w-full p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
                 <div className="max-w-3xl mx-auto">
-                  <ReactMarkdown 
+                  <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      p: ({children}) => <p className="mb-4 leading-relaxed text-slate-700">{children}</p>,
-                      strong: ({children}) => <strong className="font-bold text-slate-900">{children}</strong>,
-                      ul: ({children}) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-700">{children}</ul>,
-                      ol: ({children}) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-slate-700">{children}</ol>,
-                      li: ({children}) => <li>{children}</li>,
-                      h1: ({children}) => <h1 className="text-3xl font-bold mt-8 mb-4 text-slate-900 pb-2 border-b border-slate-200">{children}</h1>,
-                      h2: ({children}) => <h2 className="text-2xl font-bold mt-6 mb-3 text-slate-800">{children}</h2>,
-                      h3: ({children}) => <h3 className="text-xl font-bold mt-5 mb-2 text-slate-800">{children}</h3>,
-                      code: ({children}) => (
+                      p: ({ children }) => <p className="mb-4 leading-relaxed text-slate-700">{children}</p>,
+                      strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
+                      ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-700">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-slate-700">{children}</ol>,
+                      li: ({ children }) => <li>{children}</li>,
+                      h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4 text-slate-900 pb-2 border-b border-slate-200">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3 text-slate-800">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-xl font-bold mt-5 mb-2 text-slate-800">{children}</h3>,
+                      code: ({ children }) => (
                         <code className="px-1.5 py-0.5 rounded text-sm bg-slate-100 text-slate-800 font-mono border border-slate-200">
                           {children}
                         </code>
                       ),
-                      pre: ({children}) => (
+                      pre: ({ children }) => (
                         <pre className="p-4 rounded-xl overflow-x-auto text-sm my-4 bg-slate-900 text-slate-100 shadow-md">
                           {children}
                         </pre>
                       ),
-                      blockquote: ({children}) => (
+                      blockquote: ({ children }) => (
                         <blockquote className="border-l-4 pl-4 italic my-4 text-slate-600 border-blue-400 bg-blue-50 py-2 rounded-r-lg">
                           {children}
                         </blockquote>
@@ -313,7 +313,7 @@ export default function AnotacoesPage() {
                 </div>
               </div>
             ) : (
-              <textarea 
+              <textarea
                 value={editorContent}
                 onChange={e => setEditorContent(e.target.value)}
                 placeholder="Cole aqui o conteúdo do ChatZen..."
