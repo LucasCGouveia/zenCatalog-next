@@ -79,11 +79,11 @@ export async function askChatZen(question: string, sessionId?: string) {
     // 1. Busca as configurações do Usuário (Prompt Personalizado)
     const userSettings = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { systemPrompt: true }
+      select: { chatPrompt: true }
     });
 
     // 2. Define o Prompt do Sistema (Do banco ou Fallback)
-    const systemInstruction = userSettings?.systemPrompt ||
+    const systemInstruction = userSettings?.chatPrompt ||
       "Você é um assistente inteligente e útil. Responda baseando-se no contexto fornecido.";
 
     // 3. Gestão da Sessão
