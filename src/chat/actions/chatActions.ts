@@ -125,17 +125,26 @@ export async function askChatZen(question: string, sessionId?: string) {
         }) as unknown as any[];
 
         contextText = contextResults.length > 0
-          ? contextResults.map(doc => `--- VÍDEO ENCONTRADO ---\nTítulo: ${doc.fileName}\nConteúdo: ${doc.summary}`).join("\n\n")
-          : "";
+          ? contextResults.map(doc => `--- VÍDEO ENCONTRADO ---\nArquivo: ${doc.fileName}\nConteúdo: ${doc.summary}`).join("\n\n") : "";
       } catch (e) { console.warn("Erro na busca vetorial:", e); }
     }
 
     // 5. Montagem Final do Prompt
     const finalPrompt = `
+INSTRUÇÕES DO SISTEMA:
 ${systemInstruction}
 
-CONTEXTO DO ACERVO PESSOAL (Use se for relevante):
-${contextText}
+REGRA ESTRITA DE ACESSO: 
+Você TEM acesso ao catálogo de vídeos do usuário. Os resultados relevantes do banco de dados dele foram buscados e injetados abaixo. 
+NUNCA diga que você não tem acesso ao catálogo ou aos vídeos. Trate o "CONTEXTO DO ACERVO PESSOAL" abaixo como a sua visão do banco de dados dele.
+
+REGRA ESTRITA DE CITAÇÃO (OBRIGATÓRIA PARA TODOS OS VÍDEOS):
+Sempre que utilizar um vídeo do contexto fornecido, você DEVE obrigatoriamente escrever o nome EXATO e COMPLETO do arquivo (campo "Arquivo") em **negrito** no meio do seu texto. 
+NÃO abrevie, NÃO mude as palavras e NÃO omita a extensão .mp4 ou as tags como [ESP].
+Exemplo de como você deve fazer: "O vídeo que nos inspira hoje é o **[25] [ESP] Reforma Íntima - O Conteúdo Interior e as Reações Sob Pressão - Autor Desconhecido.mp4**, que nos convida a..."
+
+CONTEXTO DO ACERVO PESSOAL:
+${contextText ? contextText : "Nenhum item específico do catálogo correspondeu exatamente a esta busca, mas ajude o usuário com base no seu conhecimento."}
 
 PERGUNTA DO USUÁRIO:
 "${question}"

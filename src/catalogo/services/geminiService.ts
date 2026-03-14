@@ -39,7 +39,15 @@ const getModel = (modelName: string) => {
 export async function generateEmbedding(text: string) {
   try {
     const result = await embeddingModel.embedContent(text);
-    return result.embedding.values;
+    let embedding = result.embedding.values;
+
+    // GARANTIA DE DIMENSÃO: Se o modelo retornar mais de 768 dimensões (ex: 3072),
+    // cortamos o vetor para 768 para bater exatamente com o índice do MongoDB.
+    if (embedding.length > 768) {
+      embedding = embedding.slice(0, 768);
+    }
+
+    return embedding;
   } catch (error) {
     console.error("Erro ao gerar embedding:", error);
     throw error;

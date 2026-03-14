@@ -60,7 +60,8 @@ export default function AnotacoesPage() {
     setEditorTitle("");
     setEditorContent("");
     setIsPreview(false);
-    // Se estiver em mobile ou tela pequena, você poderia fechar a sidebar aqui, mas no desktop vamos manter
+
+    if (window.innerWidth < 640) setIsSidebarOpen(false);
   }
 
   async function handleSaveNote() {
@@ -115,6 +116,8 @@ export default function AnotacoesPage() {
     setEditorTitle(note.title);
     setEditorContent(note.content);
     setIsPreview(true);
+
+    if (window.innerWidth < 640) setIsSidebarOpen(false);
   }
 
   useEffect(() => {
@@ -122,12 +125,14 @@ export default function AnotacoesPage() {
   }, []);
 
   return (
-    <div className="flex h-[calc(100vh-100px)] gap-6 p-6 transition-all">
-
+    <div className="flex h-[calc(100vh-100px)] gap-2 sm:gap-6 p-2 sm:p-6 transition-all relative">
       {/* SIDEBAR: Pastas e Lista de Notas (Com Animação de Largura) */}
       <div className={`
         flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ease-in-out
-        ${isSidebarOpen ? 'w-1/3 border border-slate-200' : 'w-0 border-none opacity-0 pointer-events-none'}
+        ${isSidebarOpen
+          // 2. Mudança aqui: No celular ela fica "absolute inset-0 z-20 w-full", no desktop "sm:relative sm:w-1/3"
+          ? 'absolute inset-0 z-20 sm:relative sm:inset-auto sm:w-1/3 border border-slate-200 w-full h-full'
+          : 'w-0 border-none opacity-0 pointer-events-none hidden sm:flex'}
       `}>
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center min-w-[250px]">
           <h2 className="font-bold text-slate-700">Minhas Pastas</h2>
@@ -227,9 +232,9 @@ export default function AnotacoesPage() {
           </div>
         ) : (
           <>
-            <div className="p-6 border-b border-slate-100 flex items-start gap-4 bg-white z-10">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center gap-2 sm:gap-4 bg-white z-10">
 
-              {/* BOTÃO TOGGLE SIDEBAR (Só aparece se sidebar fechada ou para toggle) */}
+              {/* BOTÃO TOGGLE SIDEBAR */}
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className={`p-2 rounded-lg transition-colors shrink-0 ${isSidebarOpen ? 'text-slate-400 hover:bg-slate-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
@@ -242,21 +247,22 @@ export default function AnotacoesPage() {
                 type="text"
                 value={editorTitle}
                 onChange={e => setEditorTitle(e.target.value)}
-                placeholder="Título da Aula / Anotação"
-                className="text-2xl font-bold text-slate-800 placeholder:text-slate-300 outline-none flex-1 bg-transparent min-w-0"
+                placeholder="Título da Aula..."
+                // Mudança: text-lg no celular, text-2xl no desktop
+                className="text-lg sm:text-2xl font-bold text-slate-800 placeholder:text-slate-300 outline-none flex-1 bg-transparent min-w-0"
               />
 
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-1 sm:gap-2 shrink-0">
                 <button
                   onClick={() => setIsPreview(!isPreview)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
                   title={isPreview ? "Editar" : "Visualizar Leitura"}
                 >
                   {isPreview ? <Pen size={18} /> : <Eye size={18} />}
                   <span className="text-sm font-medium hidden sm:inline">{isPreview ? "Editar" : "Ler"}</span>
                 </button>
 
-                <div className="w-px h-8 bg-slate-200 mx-2 hidden sm:block"></div>
+                <div className="w-px h-8 bg-slate-200 mx-1 sm:mx-2 hidden sm:block"></div>
 
                 {selectedNote.id !== 'new' && (
                   <button
@@ -264,12 +270,12 @@ export default function AnotacoesPage() {
                     className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                     title="Excluir nota"
                   >
-                    <Trash2 size={20} />
+                    <Trash2 size={18} />
                   </button>
                 )}
                 <button
                   onClick={handleSaveNote}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20"
+                  className="flex items-center gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20"
                 >
                   <Save size={18} /> <span className="hidden sm:inline">Salvar</span>
                 </button>
@@ -278,46 +284,46 @@ export default function AnotacoesPage() {
 
             {/* ÁREA DE CONTEÚDO */}
             {isPreview ? (
-              <div className="flex-1 w-full p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                <div className="max-w-3xl mx-auto">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children }) => <p className="mb-4 leading-relaxed text-slate-700">{children}</p>,
-                      strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
-                      ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-700">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-slate-700">{children}</ol>,
-                      li: ({ children }) => <li>{children}</li>,
-                      h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4 text-slate-900 pb-2 border-b border-slate-200">{children}</h1>,
-                      h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3 text-slate-800">{children}</h2>,
-                      h3: ({ children }) => <h3 className="text-xl font-bold mt-5 mb-2 text-slate-800">{children}</h3>,
-                      code: ({ children }) => (
-                        <code className="px-1.5 py-0.5 rounded text-sm bg-slate-100 text-slate-800 font-mono border border-slate-200">
-                          {children}
-                        </code>
-                      ),
-                      pre: ({ children }) => (
-                        <pre className="p-4 rounded-xl overflow-x-auto text-sm my-4 bg-slate-900 text-slate-100 shadow-md">
-                          {children}
-                        </pre>
-                      ),
-                      blockquote: ({ children }) => (
-                        <blockquote className="border-l-4 pl-4 italic my-4 text-slate-600 border-blue-400 bg-blue-50 py-2 rounded-r-lg">
-                          {children}
-                        </blockquote>
-                      )
-                    }}
-                  >
-                    {editorContent || "*Nenhum conteúdo ainda...*"}
-                  </ReactMarkdown>
-                </div>
+              <div className="flex-1 w-full p-4 sm:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">                
+              <div className="max-w-3xl mx-auto">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => <p className="mb-4 leading-relaxed text-slate-700">{children}</p>,
+                    strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
+                    ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-700">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-slate-700">{children}</ol>,
+                    li: ({ children }) => <li>{children}</li>,
+                    h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4 text-slate-900 pb-2 border-b border-slate-200">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3 text-slate-800">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-xl font-bold mt-5 mb-2 text-slate-800">{children}</h3>,
+                    code: ({ children }) => (
+                      <code className="px-1.5 py-0.5 rounded text-sm bg-slate-100 text-slate-800 font-mono border border-slate-200">
+                        {children}
+                      </code>
+                    ),
+                    pre: ({ children }) => (
+                      <pre className="p-4 rounded-xl overflow-x-auto text-sm my-4 bg-slate-900 text-slate-100 shadow-md">
+                        {children}
+                      </pre>
+                    ),
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-4 pl-4 italic my-4 text-slate-600 border-blue-400 bg-blue-50 py-2 rounded-r-lg">
+                        {children}
+                      </blockquote>
+                    )
+                  }}
+                >
+                  {editorContent || "*Nenhum conteúdo ainda...*"}
+                </ReactMarkdown>
+              </div>
               </div>
             ) : (
               <textarea
                 value={editorContent}
                 onChange={e => setEditorContent(e.target.value)}
                 placeholder="Cole aqui o conteúdo do ChatZen..."
-                className="flex-1 w-full p-8 resize-none outline-none text-slate-700 leading-relaxed text-lg font-mono"
+                className="flex-1 w-full p-4 sm:p-8 resize-none outline-none text-slate-700 leading-relaxed text-base sm:text-lg font-mono"
               />
             )}
           </>
