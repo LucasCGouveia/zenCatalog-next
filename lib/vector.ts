@@ -11,6 +11,15 @@ type CatalogMatch = {
   similarity: number;
 };
 
+type DocumentMatch = {
+  id: string;
+  documentId: string;
+  documentName: string;
+  fileType: string;
+  content: string;
+  similarity: number;
+};
+
 function toVectorLiteral(embedding: number[]) {
   if (
     embedding.length !== EMBEDDING_DIMENSIONS ||
@@ -37,6 +46,19 @@ export async function setCatalogEmbedding(
   `;
 }
 
+export async function setDocumentChunkEmbedding(
+  chunkId: string,
+  embedding: number[],
+) {
+  const vector = toVectorLiteral(embedding);
+
+  await prisma.$executeRaw`
+    UPDATE "LibraryDocumentChunk"
+    SET "embedding" = CAST(${vector} AS vector)
+    WHERE "id" = ${chunkId}
+  `;
+}
+
 export async function findSimilarCatalogs(
   userId: string,
   embedding: number[],
@@ -56,6 +78,32 @@ export async function findSimilarCatalogs(
     WHERE "userId" = ${userId}
       AND "embedding" IS NOT NULL
     ORDER BY "embedding" <=> CAST(${vector} AS vector)
+    LIMIT ${safeLimit}
+  `);
+}
+
+export async function findSimilarDocumentChunks(
+  userId: string,
+  embedding: number[],
+  limit = 8,
+) {
+  const vector = toVectorLiteral(embedding);
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 20));
+
+  return prisma.$queryRaw<DocumentMatch[]>(Prisma.sql`
+    SELECT
+      chunk."id",
+      chunk."documentId",
+      document."name" AS "documentName",
+      document."fileType",
+      chunk."content",
+      1 - (chunk."embedding" <=> CAST(${vector} AS vector)) AS "similarity"
+    FROM "LibraryDocumentChunk" chunk
+    INNER JOIN "LibraryDocument" document
+      ON document."id" = chunk."documentId"
+    WHERE document."userId" = ${userId}
+      AND chunk."embedding" IS NOT NULL
+    ORDER BY chunk."embedding" <=> CAST(${vector} AS vector)
     LIMIT ${safeLimit}
   `);
 }

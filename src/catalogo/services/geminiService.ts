@@ -1,4 +1,10 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  type GenerateContentResult,
+  type Part,
+  type ResponseSchema,
+} from "@google/generative-ai";
 import { Category, VideoAnalysis } from "../types";
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
@@ -6,12 +12,21 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 const EMBEDDING_MODEL_NAME = process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004";
 const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
 
+function normalizeEmbedding(embedding: number[]) {
+  return embedding.length > 768 ? embedding.slice(0, 768) : embedding;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // Schema de Resposta
-const responseSchema: any = {
+const responseSchema: ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
     category: {
       type: SchemaType.STRING,
+      format: "enum",
       enum: Object.values(Category),
       description: "Categoria do vídeo"
     },
@@ -47,7 +62,7 @@ export async function generateEmbedding(text: string) {
       embedding = embedding.slice(0, 768);
     }
 
-    return embedding;
+    return normalizeEmbedding(embedding);
   } catch (error) {
     console.error("Erro ao gerar embedding:", error);
     throw error;
@@ -87,7 +102,7 @@ export const analyzeContent = async ({
   `;
 
   // Monta as partes do payload
-  const parts: any[] = [{ text: promptFinal }];
+  const parts: Part[] = [{ text: promptFinal }];
 
   if (transcriptText) {
     parts.push({ text: `CONTEÚDO DE TEXTO (Legenda ou Metadados):\n${transcriptText}` });
@@ -105,8 +120,9 @@ export const analyzeContent = async ({
     const result = await model.generateContent(parts);
     return processResponse(result, isWatchEveryDay, priorityValue);
 
-  } catch (error: any) {
-    console.warn(`⚠️ Falha no modelo principal (${primaryModelName}):`, error.message);
+  } catch (error: unknown) {
+    const primaryErrorMessage = getErrorMessage(error);
+    console.warn(`⚠️ Falha no modelo principal (${primaryModelName}):`, primaryErrorMessage);
 
     // 2. Tenta o Backup
     if (backupModelName) {
@@ -115,8 +131,10 @@ export const analyzeContent = async ({
         const backupModel = getModel(backupModelName);
         const result = await backupModel.generateContent(parts);
         return processResponse(result, isWatchEveryDay, priorityValue);
-      } catch (backupError: any) {
-        throw new Error(`Erro nos dois modelos. Principal: ${error.message} | Backup: ${backupError.message}`);
+      } catch (backupError: unknown) {
+        throw new Error(
+          `Erro nos dois modelos. Principal: ${primaryErrorMessage} | Backup: ${getErrorMessage(backupError)}`
+        );
       }
     }
     throw error;
@@ -124,8 +142,12 @@ export const analyzeContent = async ({
 };
 
 // --- FUNÇÃO DE PROCESSAMENTO E CORREÇÃO (A MÁGICA ACONTECE AQUI) ---
-function processResponse(result: any, isWatchEveryDay: boolean, priorityValue?: number): VideoAnalysis {
-  const data = JSON.parse(result.response.text());
+function processResponse(
+  result: GenerateContentResult,
+  isWatchEveryDay: boolean,
+  priorityValue?: number
+): VideoAnalysis {
+  const data = JSON.parse(result.response.text()) as VideoAnalysis;
 
   // 1. CORREÇÃO DE AUTOR: Se a IA esqueceu o autor no nome, nós forçamos.
   if (data.author && data.suggestedFilename) {
@@ -155,4 +177,25 @@ function processResponse(result: any, isWatchEveryDay: boolean, priorityValue?: 
   }
 
   return data as VideoAnalysis;
+}
+
+export async function generateEmbeddings(texts: string[]) {
+  const embeddings: number[][] = [];
+  const batchSize = 20;
+
+  for (let index = 0; index < texts.length; index += batchSize) {
+    const batch = texts.slice(index, index + batchSize);
+    const result = await embeddingModel.batchEmbedContents({
+      requests: batch.map((text) => ({
+        content: { role: "user", parts: [{ text }] },
+      })),
+    });
+    embeddings.push(
+      ...result.embeddings.map((embedding) =>
+        normalizeEmbedding(embedding.values),
+      ),
+    );
+  }
+
+  return embeddings;
 }

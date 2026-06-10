@@ -1,221 +1,260 @@
-'use server'
+"use server";
 
-import { prisma } from "@/lib/prisma";
-import { generateEmbedding } from "@/src/catalogo/services/geminiService";
-import { findSimilarCatalogs } from "@/lib/vector";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getServerSession } from "next-auth/next";
+import { GenerativeModel, GoogleGenerativeAI } from "@google/generative-ai";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import {
+  findSimilarCatalogs,
+  findSimilarDocumentChunks,
+} from "@/lib/vector";
+import { generateEmbedding } from "@/src/catalogo/services/geminiService";
+import {
+  buildChatPrompt,
+  formatConversationHistory,
+} from "@/src/chat/services/chatPrompt";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const defaultChatPrompt =
+  "Você é um assistente inteligente e útil. Responda com clareza, considerando o contexto fornecido.";
 
-// --- FUNÇÃO AUXILIAR DE RETRY (BACKOFF EXPONENCIAL) ---
-// Tenta chamar a IA até 3 vezes antes de desistir
-async function generateWithRetry(model: any, prompt: string, attempt = 1): Promise<string> {
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function generateWithRetry(
+  model: GenerativeModel,
+  prompt: string,
+  attempt = 1,
+): Promise<string> {
   try {
     const result = await model.generateContent(prompt);
     return result.response.text();
-  } catch (error: any) {
-    // Se for erro 429 (Too Many Requests) ou 503 (Servidor Ocupado)
-    if ((error.message?.includes('429') || error.message?.includes('503')) && attempt <= 3) {
-      const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
-      console.warn(`Erro 429/503 detectado. Tentativa ${attempt} falhou. Retentando em ${delay}ms...`);
+  } catch (error) {
+    const message = errorMessage(error);
+    const retryable = message.includes("429") || message.includes("503");
 
-      // Espera o tempo calculado
-      await new Promise(resolve => setTimeout(resolve, delay));
-
-      // Tenta de novo (recursivamente)
+    if (retryable && attempt <= 3) {
+      const delay = 2 ** attempt * 1000;
+      await new Promise((resolve) => setTimeout(resolve, delay));
       return generateWithRetry(model, prompt, attempt + 1);
     }
-    throw error; // Se não for erro de limite, estoura o erro real
+
+    throw error;
   }
 }
 
-// 1. LISTAR SESSÕES
+async function getAuthenticatedUserId() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) throw new Error("Login necessário.");
+  return session.user.id;
+}
+
 export async function getChatSessions() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return [];
-
   try {
-    const chats = await prisma.chatSession.findMany({
-      where: { userId: session.user.id },
-      orderBy: [
-        { isPinned: 'desc' },
-        { updatedAt: 'desc' }
-      ],
-      take: 20
+    const userId = await getAuthenticatedUserId();
+    return await prisma.chatSession.findMany({
+      where: { userId },
+      orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+      take: 20,
     });
-    return chats;
-  } catch (error) {
+  } catch {
     return [];
   }
 }
 
-// 2. LISTAR MENSAGENS
 export async function getSessionMessages(sessionId: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return [];
-
   try {
+    const userId = await getAuthenticatedUserId();
+    const ownedSession = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId },
+      select: { id: true },
+    });
+    if (!ownedSession) return [];
+
     const messages = await prisma.chatMessage.findMany({
-      where: { userId: session.user.id, sessionId: sessionId },
-      orderBy: { createdAt: 'asc' }
+      where: { userId, sessionId: ownedSession.id },
+      orderBy: { createdAt: "asc" },
+      select: { role: true, content: true },
     });
 
-    return messages.map((msg: { role: string; content: string; }) => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
+    return messages.map((message) => ({
+      role: message.role as "user" | "assistant",
+      content: message.content,
     }));
-  } catch (error) {
+  } catch {
     return [];
   }
 }
 
-// 3. ENVIAR PERGUNTA (ASK)
 export async function askChatZen(question: string, sessionId?: string) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) throw new Error("Precisa de estar logado.");
+    const userId = await getAuthenticatedUserId();
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion) throw new Error("Escreva uma pergunta.");
 
-    // 1. Busca as configurações do Usuário (Prompt Personalizado)
     const userSettings = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { chatPrompt: true }
+      where: { id: userId },
+      select: { chatPrompt: true },
     });
+    const systemInstruction =
+      userSettings?.chatPrompt?.trim() || defaultChatPrompt;
 
-    // 2. Define o Prompt do Sistema (Do banco ou Fallback)
-    const systemInstruction = userSettings?.chatPrompt ||
-      "Você é um assistente inteligente e útil. Responda baseando-se no contexto fornecido.";
-
-    // 3. Gestão da Sessão
     let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      const title = question.length > 30 ? question.substring(0, 30) + "..." : question;
+    if (currentSessionId) {
+      const ownedSession = await prisma.chatSession.findFirst({
+        where: { id: currentSessionId, userId },
+        select: { id: true },
+      });
+      if (!ownedSession) throw new Error("Conversa não encontrada.");
+
+      await prisma.chatSession.update({
+        where: { id: ownedSession.id },
+        data: { updatedAt: new Date() },
+      });
+    } else {
+      const title =
+        cleanQuestion.length > 30
+          ? `${cleanQuestion.slice(0, 30)}...`
+          : cleanQuestion;
       const newSession = await prisma.chatSession.create({
-        data: { userId: session.user.id, title: title }
+        data: { userId, title },
       });
       currentSessionId = newSession.id;
-    } else {
-      await prisma.chatSession.update({
-        where: { id: currentSessionId },
-        data: { updatedAt: new Date() }
-      });
     }
 
-    // 4. Busca de Contexto (RAG)
-    const totalVideos = await prisma.catalog.count({ where: { userId: session.user.id } });
+    const recentMessages = await prisma.chatMessage.findMany({
+      where: { userId, sessionId: currentSessionId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { role: true, content: true },
+    });
+    const conversationHistory = formatConversationHistory(
+      recentMessages.reverse(),
+    );
+
     let contextText = "";
-
-    if (totalVideos > 0) {
+    const [totalVideos, totalDocuments] = await Promise.all([
+      prisma.catalog.count({ where: { userId } }),
+      prisma.libraryDocument.count({ where: { userId, status: "READY" } }),
+    ]);
+    if (totalVideos > 0 || totalDocuments > 0) {
       try {
-        const queryVector = await generateEmbedding(question);
-        const contextResults = await findSimilarCatalogs(
-          session.user.id,
-          queryVector,
-          5,
-        );
-
-        contextText = contextResults.length > 0
-          ? contextResults.map(doc => `--- VÍDEO ENCONTRADO ---\nArquivo: ${doc.fileName}\nConteúdo: ${doc.summary}`).join("\n\n") : "";
-      } catch (e) { console.warn("Erro na busca vetorial:", e); }
-    }
-
-    // 5. Montagem Final do Prompt
-    const finalPrompt = `
-INSTRUÇÕES DO SISTEMA:
-${systemInstruction}
-
-REGRA ESTRITA DE ACESSO: 
-Você TEM acesso ao catálogo de vídeos do usuário. Os resultados relevantes do banco de dados dele foram buscados e injetados abaixo. 
-NUNCA diga que você não tem acesso ao catálogo ou aos vídeos. Trate o "CONTEXTO DO ACERVO PESSOAL" abaixo como a sua visão do banco de dados dele.
-
-REGRA ESTRITA DE CITAÇÃO (OBRIGATÓRIA PARA TODOS OS VÍDEOS):
-Sempre que utilizar um vídeo do contexto fornecido, você DEVE obrigatoriamente escrever o nome EXATO e COMPLETO do arquivo (campo "Arquivo") em **negrito** no meio do seu texto. 
-NÃO abrevie, NÃO mude as palavras e NÃO omita a extensão .mp4 ou as tags como [ESP].
-Exemplo de como você deve fazer: "O vídeo que nos inspira hoje é o **[25] [ESP] Reforma Íntima - O Conteúdo Interior e as Reações Sob Pressão - Autor Desconhecido.mp4**, que nos convida a..."
-
-CONTEXTO DO ACERVO PESSOAL:
-${contextText ? contextText : "Nenhum item específico do catálogo correspondeu exatamente a esta busca, mas ajude o usuário com base no seu conhecimento."}
-
-PERGUNTA DO USUÁRIO:
-"${question}"
-        `;
-
-    // 6. Chamada à IA com RETRY AUTOMÁTICO
-    const envModel = process.env.GEMINI_MODEL;
-    const modelsToTry = envModel
-      ? [envModel, "gemini-1.5-flash", "gemini-pro"]
-      : ["gemini-1.5-flash-002", "gemini-1.5-flash", "gemini-pro"];
-
-    let answer = "";
-    let lastError = null;
-
-    // Loop entre modelos (Fallback de Modelos)
-    for (const modelName of modelsToTry) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        // Usa nossa função blindada 'generateWithRetry' em vez de chamar direto
-        answer = await generateWithRetry(model, finalPrompt);
-        break; // Se funcionou, sai do loop
-      } catch (e) {
-        lastError = e;
-        console.error(`Falha no modelo ${modelName}:`, e);
-        // Se falhar, tenta o próximo modelo da lista
+        const queryVector = await generateEmbedding(cleanQuestion);
+        const [videoMatches, documentMatches] = await Promise.all([
+          findSimilarCatalogs(userId, queryVector, 5),
+          findSimilarDocumentChunks(userId, queryVector, 8),
+        ]);
+        const videoContext = videoMatches
+          .map(
+            (item) =>
+              `--- VÍDEO ENCONTRADO ---\nArquivo: ${item.fileName}\nConteúdo: ${item.summary}`,
+          )
+          .join("\n\n");
+        const documentContext = documentMatches
+          .map(
+            (item) =>
+              `--- DOCUMENTO ENCONTRADO ---\nDocumento: ${item.documentName}\nTipo: ${item.fileType}\nTrecho: ${item.content}`,
+          )
+          .join("\n\n");
+        contextText = [videoContext, documentContext].filter(Boolean).join("\n\n");
+      } catch (error) {
+        console.warn("Erro na busca vetorial:", error);
       }
     }
 
-    if (!answer) throw lastError || new Error("IA indisponível no momento.");
+    const prompt = buildChatPrompt({
+      systemInstruction,
+      conversationHistory,
+      contextText,
+      question: cleanQuestion,
+    });
+
+    const modelsToTry = Array.from(
+      new Set(
+        [
+          process.env.GEMINI_MODEL,
+          process.env.GEMINI_MODEL_BACKUP,
+          "gemini-1.5-flash",
+        ].filter((model): model is string => Boolean(model)),
+      ),
+    );
+
+    let answer = "";
+    let lastError: unknown;
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        answer = await generateWithRetry(model, prompt);
+        break;
+      } catch (error) {
+        lastError = error;
+        console.error(`Falha no modelo ${modelName}:`, error);
+      }
+    }
+
+    if (!answer) {
+      throw lastError || new Error("IA indisponível no momento.");
+    }
 
     await prisma.chatMessage.createMany({
       data: [
-        { role: 'user', content: question, userId: session.user.id, sessionId: currentSessionId },
-        { role: 'assistant', content: answer, userId: session.user.id, sessionId: currentSessionId }
-      ]
+        {
+          role: "user",
+          content: cleanQuestion,
+          userId,
+          sessionId: currentSessionId,
+        },
+        {
+          role: "assistant",
+          content: answer,
+          userId,
+          sessionId: currentSessionId,
+        },
+      ],
     });
 
     return { success: true, answer, sessionId: currentSessionId };
-
   } catch (error) {
-    console.error(error);
-    return { success: false, error: "Erro ao processar mensagem. Tente novamente em alguns segundos." };
+    console.error("Erro no ChatZen:", error);
+    return {
+      success: false,
+      error: "Erro ao processar mensagem. Tente novamente em alguns segundos.",
+    };
   }
 }
 
-// 4. RENOMEAR SESSÃO
-export async function renameSessionAction(sessionId: string, newTitle: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Login necessário" };
-
+export async function renameSessionAction(
+  sessionId: string,
+  newTitle: string,
+) {
   try {
-    await prisma.chatSession.update({
-      where: { id: sessionId, userId: session.user.id },
-      data: { title: newTitle }
+    const userId = await getAuthenticatedUserId();
+    const result = await prisma.chatSession.updateMany({
+      where: { id: sessionId, userId },
+      data: { title: newTitle.trim() },
     });
-    return { success: true };
-  } catch (error) {
+    return result.count ? { success: true } : { error: "Conversa não encontrada" };
+  } catch {
     return { error: "Erro ao renomear" };
   }
 }
 
-// 5. FIXAR/DESAFINAR SESSÃO
 export async function togglePinSessionAction(sessionId: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Login necessário" };
-
   try {
-    const current = await prisma.chatSession.findUnique({
-      where: { id: sessionId },
-      select: { isPinned: true }
+    const userId = await getAuthenticatedUserId();
+    const current = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId },
+      select: { id: true, isPinned: true },
     });
-
-    if (!current) return { error: "Sessão não encontrada" };
+    if (!current) return { error: "Conversa não encontrada" };
 
     await prisma.chatSession.update({
-      where: { id: sessionId, userId: session.user.id },
-      data: { isPinned: !current.isPinned }
+      where: { id: current.id },
+      data: { isPinned: !current.isPinned },
     });
     return { success: true };
-  } catch (error) {
+  } catch {
     return { error: "Erro ao fixar" };
   }
 }

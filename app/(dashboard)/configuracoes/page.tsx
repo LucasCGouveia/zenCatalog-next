@@ -20,7 +20,7 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     async function loadData() {
       if (session?.user?.id) {
-        const result = await getUserPrompts(session.user.id);
+        const result = await getUserPrompts();
         if (result.success && result.prompts) {
           setSystemPrompt(result.prompts.system);
           setChatPrompt(result.prompts.chat);
@@ -35,7 +35,7 @@ export default function ConfiguracoesPage() {
     if (!session?.user?.id) return;
     setIsSaving(true);
 
-    const result = await updatePromptsAction(session.user.id, systemPrompt, chatPrompt);
+    const result = await updatePromptsAction(systemPrompt, chatPrompt);
 
     // <--- 3. Substituindo Alert por Toast
     if (result.success) {

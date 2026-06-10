@@ -17,6 +17,12 @@ export const Header = () => {
   const { data: session } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const handleSignOut = async () => {
+    setIsMenuOpen(false);
+    await signOut({ redirect: false });
+    window.location.assign("/login");
+  };
+
   return (
     <header className="flex h-20 items-center justify-between border-b border-white/5 bg-blue-950/50 px-8 backdrop-blur-xl sticky top-0 z-40">
       
@@ -107,7 +113,7 @@ export const Header = () => {
 
                 <div className="border-t border-slate-50 mt-2 pt-2">
                   <button 
-                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    onClick={handleSignOut}
                     className="w-full flex items-center gap-3 px-5 py-3 text-red-500 hover:bg-red-50 transition-colors font-black text-sm"
                   >
                     <LogOut size={18} /> Sair do ZenCatalog

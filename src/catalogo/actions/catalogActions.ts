@@ -27,7 +27,7 @@ export async function deleteCatalogAction(id: string) {
   await CatalogService.delete(id, session.user.id);
 
   revalidatePath('/');
-  revalidatePath('/biblioteca');
+  revalidatePath('/acervo');
 }
 
 export async function updateCatalogAction(id: string, data: any) {
@@ -38,7 +38,7 @@ try {
     // Passamos o ID do usuário aqui também para segurança
     const result = await CatalogService.update(id, data, session.user.id);
     
-    revalidatePath('/biblioteca');
+    revalidatePath('/acervo');
     revalidatePath('/');
     return { success: true, data: result };
   } catch (error) {
