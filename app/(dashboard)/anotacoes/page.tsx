@@ -6,12 +6,15 @@ import { getFolders, createFolder, deleteFolder, createNote, updateNote, deleteN
 import { toast } from "sonner";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useSearchParams } from "next/navigation";
 
 // Tipos
 type NoteType = { id: string; title: string; content: string; folderId: string };
 type FolderType = { id: string; name: string; notes: NoteType[] };
 
 export default function AnotacoesPage() {
+  const searchParams = useSearchParams();
+  const linkedNoteId = searchParams.get("note");
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<NoteType | null>(null);
@@ -30,6 +33,19 @@ export default function AnotacoesPage() {
   async function loadData() {
     const data = await getFolders();
     setFolders(data as any);
+    if (linkedNoteId) {
+      for (const folder of data as FolderType[]) {
+        const note = folder.notes.find(item => item.id === linkedNoteId);
+        if (note) {
+          setSelectedFolder(folder.id);
+          setSelectedNote(note);
+          setEditorTitle(note.title);
+          setEditorContent(note.content);
+          setIsPreview(true);
+          break;
+        }
+      }
+    }
     setLoading(false);
   }
 
@@ -122,7 +138,7 @@ export default function AnotacoesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [linkedNoteId]);
 
   return (
     <div className="flex h-[calc(100vh-100px)] gap-2 sm:gap-6 p-2 sm:p-6 transition-all relative">

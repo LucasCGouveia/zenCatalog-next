@@ -3,120 +3,121 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  email          String    @unique
-  emailVerified  DateTime? // Adicionado para compatibilidade total com NextAuth
-  password       String?
-  name           String?
-  image          String?   
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime? // Adicionado para compatibilidade total com NextAuth
+  password      String?
+  name          String?
+  image         String?
 
-  systemPrompt   String?   @default("Você é um assistente especializado em organização de biblioteca de vídeos. Analise o conteúdo e sugira uma nomenclatura organizada, resumo e tópicos principais.")
-  chatPrompt     String?   @default("Você é um assistente virtual prestativo. Responda às dúvidas do usuário com base no contexto dos vídeos catalogados e em seu conhecimento geral de forma clara e objetiva.")
-  
-  catalogs       Catalog[]
-  chatMessages   ChatMessage[]
-  chatSessions   ChatSession[]
+  systemPrompt String? @default("Você é um assistente especializado em organização de biblioteca de vídeos. Analise o conteúdo e sugira uma nomenclatura organizada, resumo e tópicos principais.")
+  chatPrompt   String? @default("Você é um assistente virtual prestativo. Responda às dúvidas do usuário com base no contexto dos vídeos catalogados e em seu conhecimento geral de forma clara e objetiva.")
+
+  catalogs     Catalog[]
+  chatMessages ChatMessage[]
+  chatSessions ChatSession[]
 
   // Relacionamentos para o NextAuth (Onde os tokens realmente moram)
-  accounts       Account[]
-  sessions       Session[]
-  folders        Folder[]
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt // Adicionei para seu controle
+  accounts     Account[]
+  sessions     Session[]
+  folders      Folder[]
+  agendaBoards AgendaBoard[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // Adicionei para seu controle
 }
 
 model Account {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String  @db.ObjectId
+  id                String  @id @default(cuid())
+  userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.String
-  access_token      String? @db.String
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.String
+  id_token          String?
   session_state     String?
 
   refresh_token_expires_in Int?
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                     User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       String   @db.ObjectId
+  userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Catalog {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  fileName          String   
-  originalName      String?  
-  summary           String   
-  category          String   
-  subcategory       String?
-  subject           String?
-  author            String?
-  duration          String?
-  isWatchEveryDay   Boolean  @default(false)
-  priority          Int?
-  observations      String?  
-  
-  // Campo para o RAG (Vetorização dos resumos)
-  embedding         Float[]  
-  
-  videoUrl     String?   // A URL para assistir o vídeo futuramente
-  sourceType   String?   // 'FILE' (upload manual) ou 'URL' (link externo)
-  mimeType        String?  // Ex: 'video/mp4' (importante para o player)
-  thumbnailUrl    String?  // Para mostrar a capa do vídeo na biblioteca
+  id              String  @id @default(cuid())
+  fileName        String
+  originalName    String?
+  summary         String
+  category        String
+  subcategory     String?
+  subject         String?
+  author          String?
+  duration        String?
+  isWatchEveryDay Boolean @default(false)
+  priority        Int?
+  observations    String?
 
-  userId            String   @db.ObjectId
-  user              User     @relation(fields: [userId], references: [id])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime? @updatedAt
+  // Campo para o RAG (Vetorização dos resumos)
+  embedding Unsupported("vector(768)")?
+
+  videoUrl     String? // A URL para assistir o vídeo futuramente
+  sourceType   String? // 'FILE' (upload manual) ou 'URL' (link externo)
+  mimeType     String? // Ex: 'video/mp4' (importante para o player)
+  thumbnailUrl String? // Para mostrar a capa do vídeo na biblioteca
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
 model ChatMessage {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  role      String   // 'user' ou 'assistant'
-  content   String
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
+  id      String @id @default(cuid())
+  role    String // 'user' ou 'assistant'
+  content String
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
 
-  sessionId String?      @db.ObjectId 
+  sessionId String?
   session   ChatSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
 
 model ChatSession {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  title     String   // Ex: "Planejamento Aula 1"
-  isPinned  Boolean  @default(false)
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  
-  messages  ChatMessage[] // Uma sessão tem várias mensagens
-  
+  id       String  @id @default(cuid())
+  title    String // Ex: "Planejamento Aula 1"
+  isPinned Boolean @default(false)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id])
+
+  messages ChatMessage[] // Uma sessão tem várias mensagens
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Folder {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   name      String
-  userId    String   @db.ObjectId
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes     Note[]
   createdAt DateTime @default(now())
@@ -124,11 +125,76 @@ model Folder {
 }
 
 model Note {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  content   String
-  folderId  String   @db.ObjectId
-  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String       @id @default(cuid())
+  title       String
+  content     String
+  folderId    String
+  folder      Folder       @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  agendaCards AgendaCard[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model AgendaBoard {
+  id          String         @id @default(cuid())
+  name        String         @default("Minha Agenda")
+  orientation String         @default("STATUS_COLUMNS")
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statuses    AgendaStatus[]
+  lanes       AgendaLane[]
+  cards       AgendaCard[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([userId])
+}
+
+model AgendaStatus {
+  id        String       @id @default(cuid())
+  name      String
+  color     String       @default("#3B82F6")
+  position  Int
+  boardId   String
+  board     AgendaBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     AgendaCard[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([boardId, position])
+}
+
+model AgendaLane {
+  id        String       @id @default(cuid())
+  name      String
+  position  Int
+  boardId   String
+  board     AgendaBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     AgendaCard[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([boardId, position])
+}
+
+model AgendaCard {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  color       String       @default("#FDE68A")
+  dueDate     DateTime?
+  position    Int          @default(0)
+  boardId     String
+  board       AgendaBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  statusId    String
+  status      AgendaStatus @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  laneId      String
+  lane        AgendaLane   @relation(fields: [laneId], references: [id], onDelete: Cascade)
+  noteId      String?
+  note        Note?        @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([boardId, statusId, laneId])
+  @@index([noteId])
 }

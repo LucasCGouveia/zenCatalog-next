@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { generateEmbedding } from "@/src/catalogo/services/geminiService";
+import { findSimilarCatalogs } from "@/lib/vector";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
@@ -108,21 +109,11 @@ export async function askChatZen(question: string, sessionId?: string) {
     if (totalVideos > 0) {
       try {
         const queryVector = await generateEmbedding(question);
-        const contextResults = await prisma.catalog.aggregateRaw({
-          pipeline: [
-            {
-              "$vectorSearch": {
-                "index": "vector_index",
-                "path": "embedding",
-                "queryVector": queryVector,
-                "numCandidates": 100,
-                "limit": 5,
-                "filter": { "userId": { "$oid": session.user.id } }
-              }
-            },
-            { "$project": { "summary": 1, "fileName": 1, "author": 1 } }
-          ]
-        }) as unknown as any[];
+        const contextResults = await findSimilarCatalogs(
+          session.user.id,
+          queryVector,
+          5,
+        );
 
         contextText = contextResults.length > 0
           ? contextResults.map(doc => `--- VÍDEO ENCONTRADO ---\nArquivo: ${doc.fileName}\nConteúdo: ${doc.summary}`).join("\n\n") : "";

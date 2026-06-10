@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { generateEmbedding } from './geminiService';
+import { setCatalogEmbedding } from '@/lib/vector';
 
 export const CatalogService = {
   async save(data: any, userId: string) {
@@ -10,13 +11,14 @@ export const CatalogService = {
     // Gerar o vetor (embedding) do resumo para o Chat inteligente
     const embedding = await generateEmbedding(validData.summary);
 
-    return await prisma.catalog.create({
+    const catalog = await prisma.catalog.create({
       data: {
         ...validData, // Agora enviamos apenas os campos válidos
-        embedding,
         userId
       }
     });
+    await setCatalogEmbedding(catalog.id, embedding);
+    return catalog;
   },
 
   async listAll(userId: string) {

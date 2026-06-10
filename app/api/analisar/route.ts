@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSystemPrompt } from "@/src/configuracoes/actions/ConfiguracoesActions";
+import { setCatalogEmbedding } from "@/lib/vector";
 
 export async function POST(request: Request) {
   try {
@@ -64,10 +65,11 @@ export async function POST(request: Request) {
         duration: finalDuration,
         isWatchEveryDay: isWatchEveryDay || false,
         priority: priorityValue || 1,
-        embedding: embedding,
         userId: session.user.id
       }
     });
+
+    await setCatalogEmbedding(savedItem.id, embedding);
 
     return NextResponse.json(savedItem);
     
