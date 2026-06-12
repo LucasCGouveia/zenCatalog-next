@@ -1,14 +1,37 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Folder, Plus, Trash2, FileText, Save, ChevronRight, ChevronDown, Eye, Pen, PanelLeft, X } from "lucide-react";
-import { getFolders, createFolder, deleteFolder, createNote, updateNote, deleteNote } from "@/src/anotacoes/actions/anotacoesActions";
-import { toast } from "sonner";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Eye,
+  FileText,
+  Folder,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Loader2,
+  PanelLeft,
+  Pen,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
+import {
+  createFolder,
+  createNote,
+  deleteFolder,
+  deleteNote,
+  getFolders,
+  updateNote,
+} from "@/src/anotacoes/actions/anotacoesActions";
 
-// Tipos
 type NoteType = { id: string; title: string; content: string; folderId: string };
 type FolderType = { id: string; name: string; notes: NoteType[] };
 
@@ -19,69 +42,79 @@ export default function AnotacoesPage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<NoteType | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Estados de UI
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // <--- NOVO: Controle da Sidebar
-
-  // Estado do Editor
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isPresenting, setIsPresenting] = useState(false);
+  const [readingSize, setReadingSize] = useState(18);
+  const [isExporting, setIsExporting] = useState(false);
   const [editorTitle, setEditorTitle] = useState("");
   const [editorContent, setEditorContent] = useState("");
 
-  async function loadData() {
-    const data = await getFolders();
-    setFolders(data as any);
+  const loadData = useCallback(async () => {
+    const data = (await getFolders()) as FolderType[];
+    setFolders(data);
+
     if (linkedNoteId) {
-      for (const folder of data as FolderType[]) {
-        const note = folder.notes.find(item => item.id === linkedNoteId);
+      for (const folder of data) {
+        const note = folder.notes.find((item) => item.id === linkedNoteId);
         if (note) {
           setSelectedFolder(folder.id);
           setSelectedNote(note);
           setEditorTitle(note.title);
           setEditorContent(note.content);
           setIsPreview(true);
+          if (window.innerWidth < 1024) setIsSidebarOpen(false);
           break;
         }
       }
     }
-    setLoading(false);
-  }
 
-  // --- Handlers de Pasta ---
-  async function handleCreateFolder(e: React.FormEvent) {
-    e.preventDefault();
+    setLoading(false);
+  }, [linkedNoteId]);
+
+  async function handleCreateFolder(event: React.FormEvent) {
+    event.preventDefault();
     if (!newFolderName.trim()) return;
+
     await createFolder(newFolderName);
     setNewFolderName("");
     setIsCreatingFolder(false);
     toast.success("Pasta criada!");
-    loadData();
+    await loadData();
   }
 
   async function handleDeleteFolder(id: string) {
-    if (confirm("Tem certeza? Todas as notas dentro serão apagadas.")) {
-      await deleteFolder(id);
-      if (selectedFolder === id) setSelectedFolder(null);
-      toast.success("Pasta removida.");
-      loadData();
+    if (!confirm("Tem certeza? Todas as notas dentro serão apagadas.")) return;
+
+    await deleteFolder(id);
+    if (selectedFolder === id) {
+      setSelectedFolder(null);
+      setSelectedNote(null);
     }
+    toast.success("Pasta removida.");
+    await loadData();
   }
 
-  // --- Handlers de Nota ---
   function handleNewNote() {
-    if (!selectedFolder) return toast.error("Selecione uma pasta primeiro.");
+    if (!selectedFolder) {
+      toast.error("Selecione uma pasta primeiro.");
+      return;
+    }
+
     setSelectedNote({ id: "new", title: "", content: "", folderId: selectedFolder });
     setEditorTitle("");
     setEditorContent("");
     setIsPreview(false);
-
-    if (window.innerWidth < 640) setIsSidebarOpen(false);
+    if (window.innerWidth < 1024) setIsSidebarOpen(false);
   }
 
   async function handleSaveNote() {
-    if (!selectedFolder || !editorTitle.trim()) return toast.error("Título é obrigatório");
+    if (!selectedFolder || !editorTitle.trim()) {
+      toast.error("Título é obrigatório.");
+      return;
+    }
 
     const isNewNote = selectedNote?.id === "new";
 
@@ -94,75 +127,116 @@ export default function AnotacoesPage() {
         toast.success("Nota atualizada!");
       }
 
-      const updatedFolders = await getFolders();
-      setFolders(updatedFolders as any);
-
-      const currentFolder = updatedFolders.find((f: any) => f.id === selectedFolder);
-
-      let noteToSelect;
-      if (isNewNote) {
-        noteToSelect = currentFolder?.notes
-          .filter((n: any) => n.title === editorTitle)
-          .pop();
-      } else {
-        noteToSelect = currentFolder?.notes.find((n: any) => n.id === selectedNote?.id);
-      }
+      const updatedFolders = (await getFolders()) as FolderType[];
+      setFolders(updatedFolders);
+      const currentFolder = updatedFolders.find((folder) => folder.id === selectedFolder);
+      const noteToSelect = isNewNote
+        ? currentFolder?.notes.filter((note) => note.title === editorTitle).pop()
+        : currentFolder?.notes.find((note) => note.id === selectedNote?.id);
 
       if (noteToSelect) {
         setSelectedNote(noteToSelect);
         setIsPreview(true);
       }
-
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao salvar nota");
+      toast.error("Erro ao salvar nota.");
     }
   }
 
   async function handleDeleteNote(id: string) {
-    if (confirm("Apagar esta nota?")) {
-      await deleteNote(id);
-      setSelectedNote(null);
-      loadData();
-    }
+    if (!confirm("Apagar esta nota?")) return;
+
+    await deleteNote(id);
+    setSelectedNote(null);
+    setEditorTitle("");
+    setEditorContent("");
+    await loadData();
   }
 
-  function selectNoteToEdit(note: NoteType) {
+  function selectNote(note: NoteType) {
     setSelectedNote(note);
     setEditorTitle(note.title);
     setEditorContent(note.content);
     setIsPreview(true);
+    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+  }
 
-    if (window.innerWidth < 640) setIsSidebarOpen(false);
+  async function handleExportPdf() {
+    if (!editorTitle.trim()) {
+      toast.error("Adicione um título antes de exportar.");
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const { exportNoteToPdf } = await import("@/src/anotacoes/utils/exportNoteToPdf");
+      const folderName = folders.find((folder) => folder.id === selectedFolder)?.name;
+
+      await exportNoteToPdf({
+        title: editorTitle,
+        content: editorContent,
+        folderName,
+      });
+      toast.success("PDF exportado!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Não foi possível gerar o PDF.");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   useEffect(() => {
-    loadData();
-  }, [linkedNoteId]);
+    const timeout = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadData]);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsPresenting(false);
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
 
   return (
-    <div className="flex h-[calc(100vh-100px)] gap-2 sm:gap-6 p-2 sm:p-6 transition-all relative">
-      {/* SIDEBAR: Pastas e Lista de Notas (Com Animação de Largura) */}
-      <div className={`
-        flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ease-in-out
-        ${isSidebarOpen
-          // 2. Mudança aqui: No celular ela fica "absolute inset-0 z-20 w-full", no desktop "sm:relative sm:w-1/3"
-          ? 'absolute inset-0 z-20 sm:relative sm:inset-auto sm:w-1/3 border border-slate-200 w-full h-full'
-          : 'w-0 border-none opacity-0 pointer-events-none hidden sm:flex'}
-      `}>
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center min-w-[250px]">
-          <h2 className="font-bold text-slate-700">Minhas Pastas</h2>
+    <div
+      className={`relative flex min-h-0 gap-3 transition-all md:gap-5 ${
+        isPresenting
+          ? "fixed inset-0 z-[100] h-dvh bg-slate-100"
+          : "h-full min-h-0"
+      }`}
+    >
+      <aside
+        className={`flex flex-col overflow-hidden bg-white shadow-sm transition-all duration-300 ease-in-out ${
+          isPresenting ? "hidden" : "rounded-2xl"
+        } ${
+          isSidebarOpen
+            ? "absolute inset-0 z-30 h-full w-full border border-slate-200 lg:relative lg:inset-auto lg:w-[22rem] lg:shrink-0"
+            : "pointer-events-none hidden w-0 border-none opacity-0 lg:flex"
+        }`}
+      >
+        <div className="flex min-w-[250px] items-center justify-between border-b border-slate-100 bg-slate-50 p-4">
+          <h2 className="font-bold text-slate-700">Minhas pastas</h2>
           <div className="flex gap-1">
             <button
-              onClick={() => setIsCreatingFolder(!isCreatingFolder)}
-              className="p-2 hover:bg-slate-200 rounded-lg text-slate-600"
-              title="Nova Pasta"
+              onClick={() => setIsCreatingFolder((value) => !value)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-200"
+              title="Nova pasta"
+              aria-label="Criar pasta"
             >
               <Plus size={18} />
             </button>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 lg:hidden" // Botão fechar extra para mobile
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-200"
+              aria-label="Fechar pastas"
             >
               <X size={18} />
             </button>
@@ -170,181 +244,261 @@ export default function AnotacoesPage() {
         </div>
 
         {isCreatingFolder && (
-          <form onSubmit={handleCreateFolder} className="p-3 bg-blue-50 border-b border-blue-100 min-w-[250px]">
-            {/* CORREÇÃO: Input com texto escuro */}
+          <form onSubmit={handleCreateFolder} className="min-w-[250px] border-b border-blue-100 bg-blue-50 p-3">
             <input
               autoFocus
-              className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 transition-colors"
-              placeholder="Nome da pasta (ex: Semeador)"
+              className="w-full rounded-xl border border-blue-200 px-3 py-3 text-base text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500"
+              placeholder="Nome da pasta"
               value={newFolderName}
-              onChange={e => setNewFolderName(e.target.value)}
+              onChange={(event) => setNewFolderName(event.target.value)}
             />
           </form>
         )}
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1 min-w-[250px]">
-          {folders.map(folder => (
-            <div key={folder.id} className="rounded-lg overflow-hidden">
+        <div className="min-w-[250px] flex-1 space-y-1 overflow-y-auto overscroll-contain p-2">
+          {loading && <p className="p-4 text-center text-sm text-slate-400">Carregando...</p>}
+
+          {!loading && folders.length === 0 && (
+            <div className="px-4 py-10 text-center">
+              <Folder className="mx-auto mb-3 text-slate-300" size={36} />
+              <p className="text-sm text-slate-500">Crie uma pasta para organizar suas aulas.</p>
+              <button
+                onClick={() => setIsCreatingFolder(true)}
+                className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"
+              >
+                Criar primeira pasta
+              </button>
+            </div>
+          )}
+
+          {folders.map((folder) => (
+            <div key={folder.id} className="overflow-hidden rounded-xl">
               <div
-                className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${selectedFolder === folder.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                className={`flex min-h-12 cursor-pointer items-center justify-between p-3 transition-colors ${
+                  selectedFolder === folder.id
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
                 onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
               >
-                <div className="flex items-center gap-2 font-medium">
+                <div className="flex min-w-0 items-center gap-2 font-medium">
                   {selectedFolder === folder.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <Folder size={18} />
-                  {folder.name}
+                  <Folder size={18} className="shrink-0" />
+                  <span className="truncate">{folder.name}</span>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id) }} className="text-slate-400 hover:text-red-500 p-1">
-                  <Trash2 size={14} />
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleDeleteFolder(folder.id);
+                  }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                  aria-label={`Excluir pasta ${folder.name}`}
+                >
+                  <Trash2 size={15} />
                 </button>
               </div>
 
               {selectedFolder === folder.id && (
-                <div className="bg-slate-50/50 pl-9 pr-2 py-2 space-y-1 border-l-2 border-blue-100 ml-4">
-                  {folder.notes.length === 0 && <p className="text-xs text-slate-400 italic">Nenhuma nota aqui.</p>}
+                <div className="ml-4 space-y-1 border-l-2 border-blue-100 bg-slate-50/50 py-2 pl-5 pr-2">
+                  {folder.notes.length === 0 && (
+                    <p className="px-2 py-2 text-xs italic text-slate-400">Nenhuma nota aqui.</p>
+                  )}
 
-                  {folder.notes.map(note => (
-                    <div
+                  {folder.notes.map((note) => (
+                    <button
                       key={note.id}
-                      onClick={() => selectNoteToEdit(note)}
-                      className="group flex justify-between items-center text-sm py-1.5 px-2 rounded-md hover:bg-white cursor-pointer text-slate-600 hover:text-blue-600"
+                      onClick={() => selectNote(note)}
+                      className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm ${
+                        selectedNote?.id === note.id
+                          ? "bg-white font-semibold text-blue-700 shadow-sm"
+                          : "text-slate-600 hover:bg-white hover:text-blue-600"
+                      }`}
                     >
-                      <span className="truncate flex-1 flex gap-2 items-center">
-                        <FileText size={14} /> {note.title}
-                      </span>
-                    </div>
+                      <FileText size={14} className="shrink-0" />
+                      <span className="truncate">{note.title}</span>
+                    </button>
                   ))}
 
                   <button
                     onClick={handleNewNote}
-                    className="w-full text-left text-xs font-bold text-blue-600 hover:text-blue-700 mt-2 px-2 py-1 flex items-center gap-1"
+                    className="mt-2 flex min-h-11 w-full items-center gap-1 rounded-lg px-2 py-2 text-left text-xs font-bold text-blue-600 hover:bg-blue-50"
                   >
-                    <Plus size={12} /> Nova Nota
+                    <Plus size={14} /> Nova nota
                   </button>
                 </div>
               )}
             </div>
           ))}
         </div>
-      </div>
+      </aside>
 
-      {/* ÁREA PRINCIPAL: Editor / Visualizador */}
-      <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative transition-all">
+      <section
+        className={`relative flex min-w-0 flex-1 flex-col overflow-hidden border border-slate-200 bg-white shadow-sm ${
+          isPresenting ? "rounded-none" : "rounded-2xl"
+        }`}
+      >
         {!selectedNote ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-300 relative">
-            {/* Botão para abrir sidebar mesmo sem nota selecionada */}
+          <div className="relative flex flex-1 flex-col items-center justify-center px-6 text-center text-slate-400">
             {!isSidebarOpen && (
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="absolute top-4 left-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-                title="Abrir Pastas"
+                className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
+                title="Abrir pastas"
+                aria-label="Abrir pastas"
               >
                 <PanelLeft size={20} />
               </button>
             )}
-
-            <FileText size={64} className="mb-4 opacity-50" />
-            <p>Selecione uma pasta e crie uma nota para começar</p>
+            <FileText size={56} className="mb-4 text-slate-200" />
+            <p className="max-w-xs text-sm sm:text-base">Selecione uma pasta e abra uma nota para começar.</p>
           </div>
         ) : (
           <>
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center gap-2 sm:gap-4 bg-white z-10">
+            <header className="z-10 flex flex-col gap-2 border-b border-slate-100 bg-white p-2.5 sm:p-4 lg:flex-row lg:items-center lg:gap-4 lg:p-5">
+              <div className="flex min-w-0 items-center gap-2">
+                {!isPresenting && (
+                  <button
+                    onClick={() => setIsSidebarOpen((value) => !value)}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                      isSidebarOpen
+                        ? "text-slate-400 hover:bg-slate-100"
+                        : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                    }`}
+                    title={isSidebarOpen ? "Esconder pastas" : "Mostrar pastas"}
+                    aria-label={isSidebarOpen ? "Esconder pastas" : "Mostrar pastas"}
+                  >
+                    <PanelLeft size={20} />
+                  </button>
+                )}
 
-              {/* BOTÃO TOGGLE SIDEBAR */}
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`p-2 rounded-lg transition-colors shrink-0 ${isSidebarOpen ? 'text-slate-400 hover:bg-slate-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-                title={isSidebarOpen ? "Esconder Pastas" : "Mostrar Pastas"}
-              >
-                <PanelLeft size={20} />
-              </button>
+                <input
+                  type="text"
+                  value={editorTitle}
+                  onChange={(event) => setEditorTitle(event.target.value)}
+                  placeholder="Título da aula..."
+                  readOnly={isPresenting}
+                  className="min-w-0 flex-1 bg-transparent text-lg font-bold text-slate-800 outline-none placeholder:text-slate-300 sm:text-2xl"
+                />
+              </div>
 
-              <input
-                type="text"
-                value={editorTitle}
-                onChange={e => setEditorTitle(e.target.value)}
-                placeholder="Título da Aula..."
-                // Mudança: text-lg no celular, text-2xl no desktop
-                className="text-lg sm:text-2xl font-bold text-slate-800 placeholder:text-slate-300 outline-none flex-1 bg-transparent min-w-0"
-              />
+              <div className="flex shrink-0 items-center justify-end gap-1 overflow-x-auto">
+                {isPreview && (
+                  <div className="mr-auto flex items-center rounded-xl bg-slate-100 p-1 lg:mr-1">
+                    <button
+                      onClick={() => setReadingSize((size) => Math.max(15, size - 1))}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white"
+                      title="Diminuir texto"
+                      aria-label="Diminuir texto"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="w-9 text-center text-xs font-bold text-slate-500">{readingSize}</span>
+                    <button
+                      onClick={() => setReadingSize((size) => Math.min(28, size + 1))}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white"
+                      title="Aumentar texto"
+                      aria-label="Aumentar texto"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                )}
 
-              <div className="flex gap-1 sm:gap-2 shrink-0">
                 <button
-                  onClick={() => setIsPreview(!isPreview)}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
-                  title={isPreview ? "Editar" : "Visualizar Leitura"}
+                  onClick={() => setIsPreview((value) => !value)}
+                  className="flex h-11 items-center gap-2 rounded-xl px-3 text-slate-500 hover:bg-slate-100"
+                  title={isPreview ? "Editar" : "Visualizar leitura"}
                 >
                   {isPreview ? <Pen size={18} /> : <Eye size={18} />}
-                  <span className="text-sm font-medium hidden sm:inline">{isPreview ? "Editar" : "Ler"}</span>
+                  <span className="hidden text-sm font-medium sm:inline">{isPreview ? "Editar" : "Ler"}</span>
                 </button>
 
-                <div className="w-px h-8 bg-slate-200 mx-1 sm:mx-2 hidden sm:block"></div>
+                {isPreview && (
+                  <button
+                    onClick={() => setIsPresenting((value) => !value)}
+                    className={`flex h-11 items-center gap-2 rounded-xl px-3 ${
+                      isPresenting ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-100"
+                    }`}
+                    title={isPresenting ? "Sair da apresentação" : "Apresentar em tela cheia"}
+                  >
+                    {isPresenting ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    <span className="hidden text-sm font-medium sm:inline">{isPresenting ? "Sair" : "Apresentar"}</span>
+                  </button>
+                )}
 
-                {selectedNote.id !== 'new' && (
+                <button
+                  onClick={handleExportPdf}
+                  disabled={isExporting}
+                  className="flex h-11 items-center gap-2 rounded-xl px-3 text-slate-500 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
+                  title="Exportar anotação em PDF"
+                >
+                  {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                  <span className="hidden text-sm font-medium sm:inline">PDF</span>
+                </button>
+
+                {!isPresenting && selectedNote.id !== "new" && (
                   <button
                     onClick={() => handleDeleteNote(selectedNote.id)}
-                    className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl text-red-400 hover:bg-red-50"
                     title="Excluir nota"
+                    aria-label="Excluir nota"
                   >
                     <Trash2 size={18} />
                   </button>
                 )}
-                <button
-                  onClick={handleSaveNote}
-                  className="flex items-center gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20"
-                >
-                  <Save size={18} /> <span className="hidden sm:inline">Salvar</span>
-                </button>
-              </div>
-            </div>
 
-            {/* ÁREA DE CONTEÚDO */}
-            {isPreview ? (
-              <div className="flex-1 w-full p-4 sm:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">                
-              <div className="max-w-3xl mx-auto">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    p: ({ children }) => <p className="mb-4 leading-relaxed text-slate-700">{children}</p>,
-                    strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
-                    ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-700">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-slate-700">{children}</ol>,
-                    li: ({ children }) => <li>{children}</li>,
-                    h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4 text-slate-900 pb-2 border-b border-slate-200">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3 text-slate-800">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-xl font-bold mt-5 mb-2 text-slate-800">{children}</h3>,
-                    code: ({ children }) => (
-                      <code className="px-1.5 py-0.5 rounded text-sm bg-slate-100 text-slate-800 font-mono border border-slate-200">
-                        {children}
-                      </code>
-                    ),
-                    pre: ({ children }) => (
-                      <pre className="p-4 rounded-xl overflow-x-auto text-sm my-4 bg-slate-900 text-slate-100 shadow-md">
-                        {children}
-                      </pre>
-                    ),
-                    blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 pl-4 italic my-4 text-slate-600 border-blue-400 bg-blue-50 py-2 rounded-r-lg">
-                        {children}
-                      </blockquote>
-                    )
-                  }}
-                >
-                  {editorContent || "*Nenhum conteúdo ainda...*"}
-                </ReactMarkdown>
+                {!isPresenting && (
+                  <button
+                    onClick={handleSaveNote}
+                    className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-3 font-medium text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 sm:px-4"
+                  >
+                    <Save size={18} />
+                    <span className="hidden sm:inline">Salvar</span>
+                  </button>
+                )}
               </div>
+            </header>
+
+            {isPreview ? (
+              <div className="custom-scrollbar w-full flex-1 overflow-y-auto overscroll-contain bg-slate-50/30 px-4 py-5 sm:p-8">
+                <article
+                  className="mx-auto max-w-4xl break-words pb-[max(2rem,env(safe-area-inset-bottom))] text-slate-700"
+                  style={{ fontSize: `${readingSize}px` }}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({ children }) => <p className="mb-5 leading-[1.75]">{children}</p>,
+                      strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
+                      ul: ({ children }) => <ul className="mb-5 list-disc space-y-2 pl-6 leading-relaxed">{children}</ul>,
+                      ol: ({ children }) => <ol className="mb-5 list-decimal space-y-2 pl-6 leading-relaxed">{children}</ol>,
+                      h1: ({ children }) => <h1 className="mb-5 mt-8 border-b border-slate-200 pb-3 text-[1.65em] font-bold leading-tight text-slate-900 first:mt-0">{children}</h1>,
+                      h2: ({ children }) => <h2 className="mb-4 mt-7 text-[1.35em] font-bold leading-tight text-slate-800">{children}</h2>,
+                      h3: ({ children }) => <h3 className="mb-3 mt-6 text-[1.15em] font-bold leading-tight text-slate-800">{children}</h3>,
+                      code: ({ children }) => <code className="break-words rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[0.85em] text-slate-800">{children}</code>,
+                      pre: ({ children }) => <pre className="my-5 max-w-full overflow-x-auto rounded-xl bg-slate-900 p-4 text-sm text-slate-100 shadow-md">{children}</pre>,
+                      blockquote: ({ children }) => <blockquote className="my-5 rounded-r-xl border-l-4 border-blue-400 bg-blue-50 py-3 pl-4 pr-3 italic text-slate-600">{children}</blockquote>,
+                      a: ({ children, href }) => <a href={href} className="break-all font-medium text-blue-600 underline underline-offset-2">{children}</a>,
+                      table: ({ children }) => <div className="my-5 overflow-x-auto"><table className="w-full min-w-[32rem] border-collapse text-[0.9em]">{children}</table></div>,
+                      th: ({ children }) => <th className="border border-slate-300 bg-slate-100 p-2 text-left font-bold text-slate-800">{children}</th>,
+                      td: ({ children }) => <td className="border border-slate-200 p-2 align-top">{children}</td>,
+                    }}
+                  >
+                    {editorContent || "*Nenhum conteúdo ainda...*"}
+                  </ReactMarkdown>
+                </article>
               </div>
             ) : (
               <textarea
                 value={editorContent}
-                onChange={e => setEditorContent(e.target.value)}
-                placeholder="Cole aqui o conteúdo do ChatZen..."
-                className="flex-1 w-full p-4 sm:p-8 resize-none outline-none text-slate-700 leading-relaxed text-base sm:text-lg font-mono"
+                onChange={(event) => setEditorContent(event.target.value)}
+                placeholder="Cole ou escreva aqui o conteúdo da aula..."
+                className="w-full flex-1 resize-none bg-white p-4 font-mono text-base leading-relaxed text-slate-700 outline-none sm:p-8 sm:text-lg"
               />
             )}
           </>
         )}
-      </div>
+      </section>
     </div>
   );
 }

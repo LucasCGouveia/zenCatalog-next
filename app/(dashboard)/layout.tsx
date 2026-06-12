@@ -6,11 +6,11 @@ import { Header } from "@/src/layout/components/Header";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen bg-blue-950 overflow-hidden text-slate-100">
+    <div className="flex h-dvh overflow-hidden bg-blue-950 text-slate-100">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 relative z-10">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-blue-950 p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto bg-blue-950 p-3 pb-24 sm:p-5 sm:pb-24 md:p-6 md:pb-6 lg:p-8">
           {children}
         </main>
       </div>

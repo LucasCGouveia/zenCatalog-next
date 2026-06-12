@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  findDocumentChunksByText,
   findSimilarCatalogs,
   findSimilarDocumentChunks,
 } from "@/lib/vector";
@@ -13,6 +14,12 @@ import {
   buildChatPrompt,
   formatConversationHistory,
 } from "@/src/chat/services/chatPrompt";
+import {
+  buildRetrievalQuery,
+  formatSourceFooter,
+  selectDocumentMatches,
+  selectVideoMatches,
+} from "@/src/chat/services/ragContext";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const defaultChatPrompt =
@@ -134,16 +141,28 @@ export async function askChatZen(question: string, sessionId?: string) {
     );
 
     let contextText = "";
+    let sourceFooter = "";
     const [totalVideos, totalDocuments] = await Promise.all([
       prisma.catalog.count({ where: { userId } }),
       prisma.libraryDocument.count({ where: { userId, status: "READY" } }),
     ]);
     if (totalVideos > 0 || totalDocuments > 0) {
       try {
-        const queryVector = await generateEmbedding(cleanQuestion);
-        const [videoMatches, documentMatches] = await Promise.all([
-          findSimilarCatalogs(userId, queryVector, 5),
-          findSimilarDocumentChunks(userId, queryVector, 8),
+        const retrievalQuery = buildRetrievalQuery(
+          cleanQuestion,
+          recentMessages,
+        );
+        const queryVector = await generateEmbedding(retrievalQuery);
+        const [rawVideoMatches, vectorDocumentMatches, textDocumentMatches] =
+          await Promise.all([
+          findSimilarCatalogs(userId, queryVector, 8),
+          findSimilarDocumentChunks(userId, queryVector, 20),
+          findDocumentChunksByText(userId, retrievalQuery, 8),
+        ]);
+        const videoMatches = selectVideoMatches(rawVideoMatches);
+        const documentMatches = selectDocumentMatches([
+          ...textDocumentMatches,
+          ...vectorDocumentMatches,
         ]);
         const videoContext = videoMatches
           .map(
@@ -157,7 +176,8 @@ export async function askChatZen(question: string, sessionId?: string) {
               `--- DOCUMENTO ENCONTRADO ---\nDocumento: ${item.documentName}\nTipo: ${item.fileType}\nTrecho: ${item.content}`,
           )
           .join("\n\n");
-        contextText = [videoContext, documentContext].filter(Boolean).join("\n\n");
+        contextText = [documentContext, videoContext].filter(Boolean).join("\n\n");
+        sourceFooter = formatSourceFooter(documentMatches, videoMatches);
       } catch (error) {
         console.warn("Erro na busca vetorial:", error);
       }
@@ -196,6 +216,7 @@ export async function askChatZen(question: string, sessionId?: string) {
     if (!answer) {
       throw lastError || new Error("IA indisponível no momento.");
     }
+    answer = `${answer.trim()}${sourceFooter}`;
 
     await prisma.chatMessage.createMany({
       data: [

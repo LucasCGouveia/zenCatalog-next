@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const EMBEDDING_DIMENSIONS = 768;
 
-type CatalogMatch = {
+export type CatalogMatch = {
   id: string;
   fileName: string;
   summary: string;
@@ -11,7 +11,7 @@ type CatalogMatch = {
   similarity: number;
 };
 
-type DocumentMatch = {
+export type DocumentMatch = {
   id: string;
   documentId: string;
   documentName: string;
@@ -19,6 +19,44 @@ type DocumentMatch = {
   content: string;
   similarity: number;
 };
+
+const SEARCH_STOP_WORDS = new Set([
+  "aula",
+  "base",
+  "como",
+  "com",
+  "dar",
+  "dos",
+  "das",
+  "para",
+  "pela",
+  "pelo",
+  "que",
+  "sobre",
+  "uma",
+  "vou",
+]);
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function searchKeywords(query: string) {
+  return Array.from(
+    new Set(
+      normalizeSearchText(query)
+        .split(/[^a-z0-9]+/)
+        .filter(
+          (word) =>
+            word.length >= 4 &&
+            !SEARCH_STOP_WORDS.has(word),
+        ),
+    ),
+  ).slice(0, 10);
+}
 
 function toVectorLiteral(embedding: number[]) {
   if (
@@ -85,7 +123,7 @@ export async function findSimilarCatalogs(
 export async function findSimilarDocumentChunks(
   userId: string,
   embedding: number[],
-  limit = 8,
+  limit = 16,
 ) {
   const vector = toVectorLiteral(embedding);
   const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 20));
@@ -102,8 +140,75 @@ export async function findSimilarDocumentChunks(
     INNER JOIN "LibraryDocument" document
       ON document."id" = chunk."documentId"
     WHERE document."userId" = ${userId}
+      AND document."status" = 'READY'
       AND chunk."embedding" IS NOT NULL
     ORDER BY chunk."embedding" <=> CAST(${vector} AS vector)
     LIMIT ${safeLimit}
   `);
+}
+
+export async function findDocumentChunksByText(
+  userId: string,
+  query: string,
+  limit = 8,
+) {
+  const keywords = searchKeywords(query);
+  if (!keywords.length) return [];
+
+  const candidates = await prisma.libraryDocumentChunk.findMany({
+    where: {
+      document: {
+        userId,
+        status: "READY",
+      },
+      OR: keywords.map((keyword) => ({
+        content: { contains: keyword, mode: "insensitive" as const },
+      })),
+    },
+    select: {
+      id: true,
+      documentId: true,
+      content: true,
+      document: {
+        select: {
+          name: true,
+          fileType: true,
+        },
+      },
+    },
+    take: 250,
+  });
+
+  const normalizedQuery = normalizeSearchText(query);
+  const significantPhrase = keywords.slice(-5).join(" ");
+
+  return candidates
+    .map((candidate) => {
+      const normalizedContent = normalizeSearchText(candidate.content);
+      const keywordScore = keywords.reduce(
+        (score, keyword) =>
+          score + (normalizedContent.includes(keyword) ? 1 : 0),
+        0,
+      );
+      const phraseScore =
+        significantPhrase.length > 12 &&
+        normalizedContent.includes(significantPhrase)
+          ? 5
+          : 0;
+      const exactQueryScore = normalizedContent.includes(normalizedQuery) ? 8 : 0;
+      const referencePenalty =
+        /\b(sumario|indice geral)\b/.test(normalizedContent) ? 3 : 0;
+
+      return {
+        id: candidate.id,
+        documentId: candidate.documentId,
+        documentName: candidate.document.name,
+        fileType: candidate.document.fileType,
+        content: candidate.content,
+        similarity:
+          1 + keywordScore + phraseScore + exactQueryScore - referencePenalty,
+      };
+    })
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, Math.max(1, Math.min(Math.trunc(limit), 20)));
 }

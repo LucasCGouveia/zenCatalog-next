@@ -9,7 +9,8 @@ import {
   Search, 
   Settings, 
   Key, 
-  ChevronDown 
+  ChevronDown,
+  Video
 } from "lucide-react";
 import Link from "next/link";
 
@@ -24,7 +25,13 @@ export const Header = () => {
   };
 
   return (
-    <header className="flex h-20 items-center justify-between border-b border-white/5 bg-blue-950/50 px-8 backdrop-blur-xl sticky top-0 z-40">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-white/5 bg-blue-950/90 px-3 backdrop-blur-xl sm:px-5 md:h-20 md:px-8">
+      <Link href="/" className="flex items-center gap-2 font-black tracking-tight text-white md:hidden">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/30">
+          <Video size={17} />
+        </span>
+        <span>zen<span className="text-blue-500">Catalog</span></span>
+      </Link>
       
       {/* Search Bar - Estilo Command Palette */}
       <div className="flex-1 max-w-md hidden md:flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl text-gray-500 focus-within:border-blue-500/50 focus-within:bg-white/10 transition-all group">
@@ -37,19 +44,19 @@ export const Header = () => {
       </div>
 
       {/* Ações e Perfil */}
-      <div className="flex items-center gap-6">
-        <button className="relative text-gray-400 hover:text-white transition p-2 hover:bg-white/5 rounded-xl">
+      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-6">
+        <button className="relative hidden rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white sm:block">
           <Bell size={20} />
           <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-gray-950" />
         </button>
 
         {/* Menu de Perfil com Dropdown */}
-        <div className="relative flex items-center gap-4 pl-6 border-l border-white/10">
+        <div className="relative flex items-center gap-2 border-white/10 sm:border-l sm:pl-3 md:gap-4 md:pl-6">
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex items-center gap-4 hover:bg-white/5 p-1.5 rounded-2xl transition-all group"
           >
-            <div className="flex flex-col items-end">
+            <div className="hidden flex-col items-end sm:flex">
               <span className="text-sm font-bold text-white leading-none">
                 {session?.user?.name || "Usuário"}
               </span>
@@ -67,9 +74,9 @@ export const Header = () => {
               )}
             </div>
             
-            <ChevronDown 
+            <ChevronDown
               size={14} 
-              className={`text-gray-500 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''}`} 
+              className={`hidden text-gray-500 transition-transform duration-300 sm:block ${isMenuOpen ? 'rotate-180' : ''}`}
             />
           </button>
 

@@ -6,9 +6,8 @@ export default withAuth({
   },
 });
 
-export const config = { 
-  // ADICIONADO: '|cadastro' na lista de exceções
+export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|login|cadastro).*)",
-  ] 
+    "/((?!api|_next/static|_next/image|favicon.ico|fonts|login|cadastro).*)",
+  ],
 };

@@ -181,15 +181,34 @@ function processResponse(
 
 export async function generateEmbeddings(texts: string[]) {
   const embeddings: number[][] = [];
-  const batchSize = 20;
+  const batchSize = 5;
 
   for (let index = 0; index < texts.length; index += batchSize) {
     const batch = texts.slice(index, index + batchSize);
-    const result = await embeddingModel.batchEmbedContents({
-      requests: batch.map((text) => ({
-        content: { role: "user", parts: [{ text }] },
-      })),
-    });
+    let result;
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      try {
+        result = await embeddingModel.batchEmbedContents({
+          requests: batch.map((text) => ({
+            content: { role: "user", parts: [{ text }] },
+          })),
+        });
+        break;
+      } catch (error) {
+        const message = getErrorMessage(error);
+        const retryable = message.includes("429") || message.includes("503");
+        if (!retryable || attempt === 5) throw error;
+
+        const delay = attempt * 10_000;
+        console.warn(
+          `Limite temporário ao vetorizar documentos. Nova tentativa em ${delay / 1000}s.`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    if (!result) throw new Error("Não foi possível gerar embeddings.");
     embeddings.push(
       ...result.embeddings.map((embedding) =>
         normalizeEmbedding(embedding.values),
