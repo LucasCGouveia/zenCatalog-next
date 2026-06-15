@@ -161,9 +161,16 @@ export async function findDocumentChunksByText(
         userId,
         status: "READY",
       },
-      OR: keywords.map((keyword) => ({
-        content: { contains: keyword, mode: "insensitive" as const },
-      })),
+      OR: keywords.flatMap((keyword) => [
+        {
+          content: { contains: keyword, mode: "insensitive" as const },
+        },
+        {
+          document: {
+            name: { contains: keyword, mode: "insensitive" as const },
+          },
+        },
+      ]),
     },
     select: {
       id: true,

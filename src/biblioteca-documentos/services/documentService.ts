@@ -4,9 +4,9 @@ import mammoth from "mammoth";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 
 const MAX_EXTRACTED_CHARACTERS = 1_000_000;
-const CHUNK_SIZE = 7_000;
-const CHUNK_OVERLAP = 700;
-const MAX_CHUNKS = 180;
+const CHUNK_SIZE = 9_000;
+const CHUNK_OVERLAP = 900;
+const MAX_CHUNKS = 130;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 

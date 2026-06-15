@@ -45,7 +45,7 @@ export default function AnotacoesPage() {
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPresenting, setIsPresenting] = useState(false);
   const [readingSize, setReadingSize] = useState(18);
   const [isExporting, setIsExporting] = useState(false);
@@ -195,6 +195,17 @@ export default function AnotacoesPage() {
 
     return () => window.clearTimeout(timeout);
   }, [loadData]);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const syncSidebar = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsSidebarOpen(event.matches);
+    };
+
+    syncSidebar(desktopQuery);
+    desktopQuery.addEventListener("change", syncSidebar);
+    return () => desktopQuery.removeEventListener("change", syncSidebar);
+  }, []);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {

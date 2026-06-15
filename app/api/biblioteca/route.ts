@@ -138,6 +138,56 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  const userId = await authenticatedUserId();
+  if (!userId) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const body = (await request.json()) as { id?: string; name?: string };
+  const id = body.id?.trim();
+  const requestedName = body.name
+    ?.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!id || !requestedName) {
+    return NextResponse.json(
+      { error: "Informe o documento e o novo nome." },
+      { status: 400 },
+    );
+  }
+  if (requestedName.length > 180) {
+    return NextResponse.json(
+      { error: "O nome deve ter no máximo 180 caracteres." },
+      { status: 400 },
+    );
+  }
+
+  const document = await prisma.libraryDocument.findFirst({
+    where: { id, userId },
+    select: { id: true, name: true },
+  });
+  if (!document) {
+    return NextResponse.json(
+      { error: "Documento não encontrado." },
+      { status: 404 },
+    );
+  }
+
+  const currentExtension = document.name.match(/(\.[a-z0-9]+)$/i)?.[1] ?? "";
+  const requestedBaseName = requestedName.replace(/\.[a-z0-9]+$/i, "");
+  const name = `${requestedBaseName}${currentExtension}`;
+
+  const updated = await prisma.libraryDocument.update({
+    where: { id: document.id },
+    data: { name },
+    select: { id: true, name: true },
+  });
+
+  return NextResponse.json(updated);
+}
+
 export async function DELETE(request: Request) {
   const userId = await authenticatedUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });

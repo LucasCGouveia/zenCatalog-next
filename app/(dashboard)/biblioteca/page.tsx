@@ -1,18 +1,21 @@
 "use client";
 
 import {
+  Check,
   Download,
   File,
   FileImage,
   FileSpreadsheet,
   FileText,
   Loader2,
+  Pencil,
   Search,
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type LibraryDocument = {
@@ -57,16 +60,20 @@ export default function BibliotecaPage() {
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
-  async function loadDocuments() {
+  const loadDocuments = useCallback(async () => {
     const response = await fetch("/api/biblioteca", { cache: "no-store" });
     if (!response.ok) return;
     setDocuments(await response.json());
-  }
+  }, []);
 
   useEffect(() => {
-    loadDocuments();
-  }, []);
+    const timeout = window.setTimeout(() => void loadDocuments(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadDocuments]);
 
   const filteredDocuments = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -113,6 +120,7 @@ export default function BibliotecaPage() {
 
   async function removeDocument(document: LibraryDocument) {
     if (!confirm(`Excluir "${document.name}" da biblioteca?`)) return;
+
     const response = await fetch(`/api/biblioteca?id=${document.id}`, {
       method: "DELETE",
     });
@@ -120,10 +128,50 @@ export default function BibliotecaPage() {
       toast.error("Não foi possível excluir o documento.");
       return;
     }
+
     setDocuments((current) =>
       current.filter((item) => item.id !== document.id),
     );
     toast.success("Documento excluído.");
+  }
+
+  function startRenaming(document: LibraryDocument) {
+    setEditingId(document.id);
+    setEditingName(document.name);
+  }
+
+  function cancelRenaming() {
+    setEditingId(null);
+    setEditingName("");
+  }
+
+  async function renameDocument(document: LibraryDocument) {
+    if (!editingName.trim() || renaming) return;
+
+    setRenaming(true);
+    try {
+      const response = await fetch("/api/biblioteca", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: document.id, name: editingName }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      setDocuments((current) =>
+        current.map((item) =>
+          item.id === document.id ? { ...item, name: result.name } : item,
+        ),
+      );
+      cancelRenaming();
+      toast.success("Nome do documento atualizado.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Não foi possível renomear.",
+      );
+    } finally {
+      setRenaming(false);
+    }
   }
 
   return (
@@ -133,7 +181,7 @@ export default function BibliotecaPage() {
           <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-blue-400">
             <Sparkles size={15} /> Conhecimento do ChatZen
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-white">
+          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
             Minha Biblioteca
           </h1>
           <p className="mt-2 max-w-2xl text-slate-400">
@@ -141,7 +189,7 @@ export default function BibliotecaPage() {
             pesquisável.
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3">
+        <div className="w-fit rounded-2xl border border-white/10 bg-white/5 px-5 py-3">
           <strong className="text-2xl text-blue-400">{documents.length}</strong>
           <span className="ml-2 text-xs font-black uppercase tracking-widest text-slate-400">
             documentos
@@ -158,7 +206,7 @@ export default function BibliotecaPage() {
           setDragging(false);
           uploadFile(event.dataTransfer.files[0]);
         }}
-        className={`relative flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-[2rem] border-2 border-dashed p-8 text-center transition ${
+        className={`relative flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-[2rem] border-2 border-dashed p-6 text-center transition sm:min-h-52 sm:p-8 ${
           dragging
             ? "border-blue-400 bg-blue-500/10"
             : "border-white/10 bg-white/[0.03] hover:border-blue-500/50 hover:bg-blue-500/5"
@@ -208,6 +256,8 @@ export default function BibliotecaPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredDocuments.map((document) => {
             const Icon = documentIcon(document.fileType);
+            const isEditing = editingId === document.id;
+
             return (
               <article
                 key={document.id}
@@ -221,32 +271,92 @@ export default function BibliotecaPage() {
                     Vetorizado
                   </span>
                 </div>
-                <h3 className="mt-4 line-clamp-2 font-black leading-snug">
-                  {document.name}
-                </h3>
+
+                {isEditing ? (
+                  <div className="mt-4">
+                    <input
+                      autoFocus
+                      value={editingName}
+                      onChange={(event) => setEditingName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") renameDocument(document);
+                        if (event.key === "Escape") cancelRenaming();
+                      }}
+                      className="w-full rounded-xl border border-blue-200 bg-blue-50/50 px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-500"
+                      aria-label={`Novo nome para ${document.name}`}
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      A extensão será mantida se você não informá-la.
+                    </p>
+                  </div>
+                ) : (
+                  <h3 className="mt-4 line-clamp-2 font-black leading-snug">
+                    {document.name}
+                  </h3>
+                )}
+
                 <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500">
-                  {document.summary || "Conteúdo extraído e disponível para busca."}
+                  {document.summary ||
+                    "Conteúdo extraído e disponível para busca."}
                 </p>
-                <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4">
+
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     {document.fileType} · {formatSize(document.size)} ·{" "}
                     {document._count.chunks} trechos
                   </div>
-                  <div className="flex gap-1">
-                    <a
-                      href={`/api/biblioteca/${document.id}/download`}
-                      className="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                      title="Baixar"
-                    >
-                      <Download size={16} />
-                    </a>
-                    <button
-                      onClick={() => removeDocument(document)}
-                      className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                      title="Excluir"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  <div className="flex shrink-0 gap-1">
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={() => renameDocument(document)}
+                          disabled={renaming}
+                          className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                          title="Salvar nome"
+                          aria-label="Salvar nome"
+                        >
+                          {renaming ? (
+                            <Loader2 className="animate-spin" size={16} />
+                          ) : (
+                            <Check size={16} />
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelRenaming}
+                          disabled={renaming}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+                          title="Cancelar"
+                          aria-label="Cancelar renomeação"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startRenaming(document)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-600"
+                          title="Renomear"
+                          aria-label={`Renomear ${document.name}`}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <a
+                          href={`/api/biblioteca/${document.id}/download`}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                          title="Baixar"
+                        >
+                          <Download size={16} />
+                        </a>
+                        <button
+                          onClick={() => removeDocument(document)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                          title="Excluir"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>

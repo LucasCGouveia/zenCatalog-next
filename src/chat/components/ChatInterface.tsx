@@ -59,7 +59,7 @@ export const ChatInterface = ({ messages, onSendMessage, isLoading }: ChatInterf
             </div>
             <div>
               <h3 className="text-xl font-black text-slate-800">Olá, sou o ChatZen</h3>
-              <p className="text-slate-400 max-w-[250px]">Pergunte-me qualquer coisa sobre o seu acervo de vídeos.</p>
+              <p className="max-w-[280px] text-slate-400">Pergunte sobre seus vídeos, livros e documentos.</p>
             </div>
           </div>
         )}
@@ -165,7 +165,7 @@ export const ChatInterface = ({ messages, onSendMessage, isLoading }: ChatInterf
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Pergunte sobre os seus vídeos..."
+            placeholder="Pergunte sobre vídeos, livros e documentos..."
             className="flex-1 bg-transparent border-none outline-none p-3 text-slate-700 text-sm"
           />
           <button 

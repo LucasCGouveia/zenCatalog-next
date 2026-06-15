@@ -35,13 +35,16 @@ export function buildRetrievalQuery(
 export function selectDocumentMatches(matches: DocumentMatch[]) {
   const selected: DocumentMatch[] = [];
   const chunksPerDocument = new Map<string, number>();
+  const selectedIds = new Set<string>();
 
   for (const match of matches) {
     if (match.similarity < DOCUMENT_SIMILARITY_THRESHOLD) continue;
+    if (selectedIds.has(match.id)) continue;
     const currentCount = chunksPerDocument.get(match.documentId) ?? 0;
     if (currentCount >= 4) continue;
 
     selected.push(match);
+    selectedIds.add(match.id);
     chunksPerDocument.set(match.documentId, currentCount + 1);
     if (selected.length >= 8) break;
   }
