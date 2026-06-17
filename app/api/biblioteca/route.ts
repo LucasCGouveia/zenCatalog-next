@@ -15,7 +15,27 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function resolveMimeType(file: File) {
+type UploadedFile = {
+  name: string;
+  size: number;
+  type?: string;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+function isUploadedFile(value: unknown): value is UploadedFile {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  );
+}
+
+function resolveMimeType(file: UploadedFile) {
   if (file.type) return file.type;
   const extension = file.name.split(".").pop()?.toLowerCase();
   const types: Record<string, string> = {
@@ -70,7 +90,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!isUploadedFile(file)) {
       return NextResponse.json({ error: "Selecione um arquivo." }, { status: 400 });
     }
     if (file.size > MAX_FILE_SIZE) {
