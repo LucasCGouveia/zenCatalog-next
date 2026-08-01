@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, Files, PlusCircle, MessageSquare, Library, Settings, Video } from 'lucide-react';
+import { CalendarDays, Files, PlusCircle, MessageSquare, Library, Settings, Video, Table2 } from 'lucide-react';
 import { BookOpen } from "lucide-react";
 
 export const Sidebar = () => {
@@ -14,6 +14,7 @@ export const Sidebar = () => {
     { name: 'Meu Acervo', href: '/acervo', icon: <Library size={18} /> },
     { name: 'Minha Biblioteca', href: '/biblioteca', icon: <Files size={18} /> },
     { name: 'Agenda', href: '/agenda', icon: <CalendarDays size={18} /> },
+    { name: 'Planos', href: '/planos', icon: <Table2 size={18} /> },
     { name: 'Anotações', href: '/anotacoes', icon: <BookOpen size={18} /> },
     { name: 'Configurações', href: '/configuracoes', icon: <Settings size={18} /> },
   ];

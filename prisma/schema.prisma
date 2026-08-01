@@ -28,9 +28,52 @@ model User {
   folders          Folder[]
   agendaBoards     AgendaBoard[]
   libraryDocuments LibraryDocument[]
+  plans            Plan[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // Adicionei para seu controle
+}
+
+model Plan {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  columns     PlanColumn[]
+  rows        PlanRow[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model PlanColumn {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("TEXT")
+  position  Int
+  width     Int      @default(180)
+  planId    String
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, position])
+  @@index([planId])
+}
+
+model PlanRow {
+  id        String   @id @default(cuid())
+  position  Int
+  values    Json     @default("{}")
+  planId    String
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, position])
+  @@index([planId])
 }
 
 model Account {
@@ -132,8 +175,11 @@ model Note {
   folderId    String
   folder      Folder       @relation(fields: [folderId], references: [id], onDelete: Cascade)
   agendaCards AgendaCard[]
+  position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  @@index([folderId, position])
 }
 
 model AgendaBoard {

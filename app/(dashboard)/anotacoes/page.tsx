@@ -1,6 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -17,6 +28,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -29,11 +41,154 @@ import {
   deleteFolder,
   deleteNote,
   getFolders,
+  updateNotesOrder,
   updateNote,
 } from "@/src/anotacoes/actions/anotacoesActions";
 
-type NoteType = { id: string; title: string; content: string; folderId: string };
+type NoteType = { id: string; title: string; content: string; folderId: string; position: number };
 type FolderType = { id: string; name: string; notes: NoteType[] };
+
+function NoteButton({
+  note,
+  selected,
+  onSelect,
+  overlay = false,
+}: {
+  note: NoteType;
+  selected: boolean;
+  onSelect?: () => void;
+  overlay?: boolean;
+}) {
+  const draggable = useDraggable({
+    id: `note:${note.id}`,
+    disabled: overlay,
+  });
+  const droppable = useDroppable({
+    id: `over-note:${note.id}`,
+    disabled: overlay,
+  });
+  const setNodeRef = (node: HTMLElement | null) => {
+    draggable.setNodeRef(node);
+    droppable.setNodeRef(node);
+  };
+
+  const style = overlay
+    ? undefined
+    : {
+        transform: draggable.transform
+          ? `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)`
+          : undefined,
+      };
+
+  return (
+    <button
+      ref={overlay ? undefined : setNodeRef}
+      style={style}
+      {...(overlay ? {} : draggable.listeners)}
+      {...(overlay ? {} : draggable.attributes)}
+      onClick={onSelect}
+      className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition ${
+        overlay
+          ? "bg-white font-semibold text-blue-700 shadow-xl"
+          : selected
+            ? "bg-white font-semibold text-blue-700 shadow-sm"
+            : "text-slate-600 hover:bg-white hover:text-blue-600"
+      } ${draggable.isDragging ? "opacity-30" : ""}`}
+    >
+      <FileText size={14} className="shrink-0" />
+      <span className="truncate">{note.title}</span>
+    </button>
+  );
+}
+
+function FolderHeader({
+  folder,
+  isOpen,
+  onToggle,
+  onDelete,
+}: {
+  folder: FolderType;
+  isOpen: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: `folder:${folder.id}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex min-h-12 cursor-pointer items-center justify-between p-3 transition-colors ${
+        isOver
+          ? "bg-blue-100 text-blue-800 ring-2 ring-inset ring-blue-300"
+          : isOpen
+            ? "bg-blue-50 text-blue-700"
+            : "text-slate-700 hover:bg-slate-50"
+      }`}
+      onClick={onToggle}
+    >
+      <div className="flex min-w-0 items-center gap-2 font-medium">
+        {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <Folder size={18} className="shrink-0" />
+        <span className="truncate">{folder.name}</span>
+      </div>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+        aria-label={`Excluir pasta ${folder.name}`}
+      >
+        <Trash2 size={15} />
+      </button>
+    </div>
+  );
+}
+
+function FolderDropArea({
+  folder,
+  selectedNoteId,
+  onSelectNote,
+  onNewNote,
+}: {
+  folder: FolderType;
+  selectedNoteId?: string;
+  onSelectNote: (note: NoteType) => void;
+  onNewNote: () => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: `folder:${folder.id}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`ml-4 space-y-1 border-l-2 py-2 pl-5 pr-2 transition ${
+        isOver
+          ? "border-blue-400 bg-blue-50"
+          : "border-blue-100 bg-slate-50/50"
+      }`}
+    >
+      {folder.notes.length === 0 && (
+        <p className="px-2 py-2 text-xs italic text-slate-400">Solte uma nota aqui.</p>
+      )}
+
+      {folder.notes.map((note) => (
+        <NoteButton
+          key={note.id}
+          note={note}
+          selected={selectedNoteId === note.id}
+          onSelect={() => onSelectNote(note)}
+        />
+      ))}
+
+      <button
+        onClick={onNewNote}
+        className="mt-2 flex min-h-11 w-full items-center gap-1 rounded-lg px-2 py-2 text-left text-xs font-bold text-blue-600 hover:bg-blue-50"
+      >
+        <Plus size={14} /> Nova nota
+      </button>
+    </div>
+  );
+}
 
 export default function AnotacoesPage() {
   const searchParams = useSearchParams();
@@ -51,6 +206,13 @@ export default function AnotacoesPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [editorTitle, setEditorTitle] = useState("");
   const [editorContent, setEditorContent] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [draggedNote, setDraggedNote] = useState<NoteType | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+  );
 
   const loadData = useCallback(async () => {
     const data = (await getFolders()) as FolderType[];
@@ -103,7 +265,7 @@ export default function AnotacoesPage() {
       return;
     }
 
-    setSelectedNote({ id: "new", title: "", content: "", folderId: selectedFolder });
+    setSelectedNote({ id: "new", title: "", content: "", folderId: selectedFolder, position: 0 });
     setEditorTitle("");
     setEditorContent("");
     setIsPreview(false);
@@ -154,12 +316,132 @@ export default function AnotacoesPage() {
     await loadData();
   }
 
+  async function handleImportNote(file: File | undefined) {
+    if (!file) return;
+
+    const payload = new FormData();
+    payload.append("file", file);
+    if (selectedFolder) payload.append("folderId", selectedFolder);
+    setIsImporting(true);
+
+    try {
+      const response = await fetch("/api/anotacoes/import", {
+        method: "POST",
+        body: payload,
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Erro ao importar anotação");
+      }
+
+      const importedNote = result.note as NoteType;
+      const updatedFolders = (await getFolders()) as FolderType[];
+      setFolders(updatedFolders);
+      setSelectedFolder(importedNote.folderId);
+      setSelectedNote(importedNote);
+      setEditorTitle(importedNote.title);
+      setEditorContent(importedNote.content);
+      setIsPreview(true);
+      if (window.innerWidth < 1024) setIsSidebarOpen(false);
+      toast.success("Anotação importada!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao importar anotação");
+    } finally {
+      setIsImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }
+
   function selectNote(note: NoteType) {
     setSelectedNote(note);
     setEditorTitle(note.title);
     setEditorContent(note.content);
     setIsPreview(true);
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
+  }
+
+  function persistFoldersOrder(nextFolders: FolderType[]) {
+    return updateNotesOrder(
+      nextFolders.map((folder) => ({
+        folderId: folder.id,
+        noteIds: folder.notes.map((note) => note.id),
+      })),
+    );
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggedNote(null);
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : "";
+    if (!activeId.startsWith("note:") || !overId) return;
+
+    const noteId = activeId.replace("note:", "");
+    const sourceFolder = folders.find((folder) =>
+      folder.notes.some((note) => note.id === noteId),
+    );
+    const movingNote = sourceFolder?.notes.find((note) => note.id === noteId);
+    if (!sourceFolder || !movingNote) return;
+
+    let targetFolderId = "";
+    let targetIndex = -1;
+
+    if (overId.startsWith("folder:")) {
+      targetFolderId = overId.replace("folder:", "");
+    } else if (overId.startsWith("over-note:")) {
+      const overNoteId = overId.replace("over-note:", "");
+      const targetFolder = folders.find((folder) =>
+        folder.notes.some((note) => note.id === overNoteId),
+      );
+      if (!targetFolder) return;
+      targetFolderId = targetFolder.id;
+      targetIndex = targetFolder.notes.findIndex((note) => note.id === overNoteId);
+    }
+
+    if (!targetFolderId) return;
+
+    const previousFolders = folders;
+    const sourceIndex = sourceFolder.notes.findIndex((note) => note.id === noteId);
+    const nextFolders = folders.map((folder) => ({
+      ...folder,
+      notes: folder.notes.filter((note) => note.id !== noteId),
+    }));
+    const targetFolderIndex = nextFolders.findIndex((folder) => folder.id === targetFolderId);
+    if (targetFolderIndex < 0) return;
+
+    const noteForTarget = { ...movingNote, folderId: targetFolderId };
+    const targetNotes = [...nextFolders[targetFolderIndex].notes];
+    const insertAt =
+      targetIndex >= 0
+        ? targetFolderId === sourceFolder.id && targetIndex > sourceIndex
+          ? targetIndex - 1
+          : targetIndex
+        : targetNotes.length;
+    targetNotes.splice(Math.min(insertAt, targetNotes.length), 0, noteForTarget);
+    nextFolders[targetFolderIndex] = {
+      ...nextFolders[targetFolderIndex],
+      notes: targetNotes.map((note, position) => ({ ...note, position })),
+    };
+
+    const normalizedFolders = nextFolders.map((folder) => ({
+      ...folder,
+      notes: folder.notes.map((note, position) => ({ ...note, position })),
+    }));
+
+    setFolders(normalizedFolders);
+    setSelectedFolder(targetFolderId);
+    if (selectedNote?.id === noteId) {
+      setSelectedNote(
+        normalizedFolders
+          .flatMap((folder) => folder.notes)
+          .find((note) => note.id === noteId) ?? noteForTarget,
+      );
+    }
+
+    void persistFoldersOrder(normalizedFolders).catch((error) => {
+      setFolders(previousFolders);
+      toast.error(error instanceof Error ? error.message : "Não foi possível mover a nota");
+    });
   }
 
   async function handleExportPdf() {
@@ -236,6 +518,22 @@ export default function AnotacoesPage() {
         <div className="flex min-w-[250px] items-center justify-between border-b border-slate-100 bg-slate-50 p-4">
           <h2 className="font-bold text-slate-700">Minhas pastas</h2>
           <div className="flex gap-1">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".txt,.md,.markdown,.docx,.pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+              className="hidden"
+              onChange={(event) => handleImportNote(event.target.files?.[0])}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={isImporting}
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-200 disabled:cursor-wait disabled:opacity-60"
+              title="Importar anotação"
+              aria-label="Importar anotação"
+            >
+              {isImporting ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+            </button>
             <button
               onClick={() => setIsCreatingFolder((value) => !value)}
               className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-200"
@@ -282,64 +580,43 @@ export default function AnotacoesPage() {
             </div>
           )}
 
-          {folders.map((folder) => (
-            <div key={folder.id} className="overflow-hidden rounded-xl">
-              <div
-                className={`flex min-h-12 cursor-pointer items-center justify-between p-3 transition-colors ${
-                  selectedFolder === folder.id
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-700 hover:bg-slate-50"
-                }`}
-                onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
-              >
-                <div className="flex min-w-0 items-center gap-2 font-medium">
-                  {selectedFolder === folder.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <Folder size={18} className="shrink-0" />
-                  <span className="truncate">{folder.name}</span>
-                </div>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleDeleteFolder(folder.id);
-                  }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
-                  aria-label={`Excluir pasta ${folder.name}`}
-                >
-                  <Trash2 size={15} />
-                </button>
+          <DndContext
+            sensors={sensors}
+            onDragStart={(event) => {
+              const noteId = String(event.active.id).replace("note:", "");
+              const note =
+                folders.flatMap((folder) => folder.notes).find((item) => item.id === noteId) ??
+                null;
+              setDraggedNote(note);
+            }}
+            onDragCancel={() => setDraggedNote(null)}
+            onDragEnd={handleDragEnd}
+          >
+            {folders.map((folder) => (
+              <div key={folder.id} className="overflow-hidden rounded-xl">
+                <FolderHeader
+                  folder={folder}
+                  isOpen={selectedFolder === folder.id}
+                  onToggle={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
+                  onDelete={() => handleDeleteFolder(folder.id)}
+                />
+
+                {selectedFolder === folder.id && (
+                  <FolderDropArea
+                    folder={folder}
+                    selectedNoteId={selectedNote?.id}
+                    onSelectNote={selectNote}
+                    onNewNote={handleNewNote}
+                  />
+                )}
               </div>
-
-              {selectedFolder === folder.id && (
-                <div className="ml-4 space-y-1 border-l-2 border-blue-100 bg-slate-50/50 py-2 pl-5 pr-2">
-                  {folder.notes.length === 0 && (
-                    <p className="px-2 py-2 text-xs italic text-slate-400">Nenhuma nota aqui.</p>
-                  )}
-
-                  {folder.notes.map((note) => (
-                    <button
-                      key={note.id}
-                      onClick={() => selectNote(note)}
-                      className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm ${
-                        selectedNote?.id === note.id
-                          ? "bg-white font-semibold text-blue-700 shadow-sm"
-                          : "text-slate-600 hover:bg-white hover:text-blue-600"
-                      }`}
-                    >
-                      <FileText size={14} className="shrink-0" />
-                      <span className="truncate">{note.title}</span>
-                    </button>
-                  ))}
-
-                  <button
-                    onClick={handleNewNote}
-                    className="mt-2 flex min-h-11 w-full items-center gap-1 rounded-lg px-2 py-2 text-left text-xs font-bold text-blue-600 hover:bg-blue-50"
-                  >
-                    <Plus size={14} /> Nova nota
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+            <DragOverlay>
+              {draggedNote ? (
+                <NoteButton note={draggedNote} selected={false} overlay />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </aside>
 
@@ -361,6 +638,14 @@ export default function AnotacoesPage() {
               </button>
             )}
             <FileText size={56} className="mb-4 text-slate-200" />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={isImporting}
+              className="mb-4 flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isImporting ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+              Importar anotação
+            </button>
             <p className="max-w-xs text-sm sm:text-base">Selecione uma pasta e abra uma nota para começar.</p>
           </div>
         ) : (
