@@ -8,7 +8,11 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // ... suas outras configurações (como output: 'standalone')
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
+  },
 };
 
-module.exports = nextConfig; // ou export default nextConfig se for .mjs
+module.exports = nextConfig;
