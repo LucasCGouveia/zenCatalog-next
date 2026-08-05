@@ -108,6 +108,11 @@ model Catalog {
   id              String  @id @default(cuid())
   fileName        String
   originalName    String?
+  driveFileId       String?
+  driveOriginalName String?
+  processingStatus  String   @default("COMPLETED")
+  processingError   String?
+  processedAt       DateTime?
   summary         String
   category        String
   subcategory     String?
@@ -130,6 +135,8 @@ model Catalog {
   user      User      @relation(fields: [userId], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
+
+  @@unique([userId, driveFileId])
 }
 
 model ChatMessage {

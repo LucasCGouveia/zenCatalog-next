@@ -5,10 +5,12 @@ import {
   type Part,
   type ResponseSchema,
 } from "@google/generative-ai";
+import { FileState, GoogleAIFileManager } from "@google/generative-ai/server";
 import { Category, VideoAnalysis } from "../types";
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(API_KEY);
+const fileManager = new GoogleAIFileManager(API_KEY);
 const EMBEDDING_MODEL_NAME = process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004";
 const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
 
@@ -72,6 +74,7 @@ export async function generateEmbedding(text: string) {
 interface AnalyzeOptions {
   contentBase64?: string;
   mimeType?: string;
+  fileUri?: string;
   transcriptText?: string;
   isWatchEveryDay: boolean;
   priorityValue?: number;
@@ -82,6 +85,7 @@ interface AnalyzeOptions {
 export const analyzeContent = async ({
   contentBase64,
   mimeType,
+  fileUri,
   transcriptText,
   isWatchEveryDay,
   priorityValue,
@@ -106,6 +110,8 @@ export const analyzeContent = async ({
 
   if (transcriptText) {
     parts.push({ text: `CONTEÚDO DE TEXTO (Legenda ou Metadados):\n${transcriptText}` });
+  } else if (fileUri && mimeType) {
+    parts.push({ fileData: { fileUri, mimeType } });
   } else if (contentBase64 && mimeType) {
     parts.push({ inlineData: { data: contentBase64, mimeType } });
   }
@@ -140,6 +146,30 @@ export const analyzeContent = async ({
     throw error;
   }
 };
+
+export async function uploadGeminiFileFromBuffer(buffer: Buffer, mimeType: string, displayName: string) {
+  const upload = await fileManager.uploadFile(buffer, {
+    mimeType,
+    displayName,
+  });
+
+  let file = upload.file;
+
+  for (let attempt = 0; attempt < 30 && file.state === FileState.PROCESSING; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    file = await fileManager.getFile(file.name);
+  }
+
+  if (file.state === FileState.FAILED) {
+    throw new Error("Falha ao preparar o arquivo de vídeo no Gemini.");
+  }
+
+  if (file.state !== FileState.ACTIVE) {
+    throw new Error("O Gemini não concluiu a preparação do vídeo dentro do tempo esperado.");
+  }
+
+  return file;
+}
 
 // --- FUNÇÃO DE PROCESSAMENTO E CORREÇÃO (A MÁGICA ACONTECE AQUI) ---
 function processResponse(
