@@ -95,6 +95,13 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error) {
+    console.error("[N8N_VIDEO_PROCESS_ERROR]", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      cause: error instanceof Error ? error.cause : undefined,
+    });
+
     const { body, status } = jsonError(error);
     return NextResponse.json(body, { status });
   }

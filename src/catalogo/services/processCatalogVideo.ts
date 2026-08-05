@@ -79,9 +79,105 @@ export function mapCatalogProcessingError(error: unknown) {
   if (error instanceof CatalogProcessingError) return error;
 
   const message = error instanceof Error ? error.message : String(error);
+  const name = error instanceof Error ? error.name : "";
   const lowerMessage = message.toLowerCase();
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : undefined;
 
-  if (message.includes("429") || lowerMessage.includes("quota")) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      return new CatalogProcessingError(
+        "CATALOG_ALREADY_EXISTS",
+        "Este vídeo já foi registrado para o usuário configurado.",
+        409,
+        false,
+      );
+    }
+
+    if (error.code === "P2025") {
+      return new CatalogProcessingError(
+        "CATALOG_NOT_FOUND",
+        "Registro não encontrado.",
+        404,
+        false,
+      );
+    }
+
+    if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error.code)) {
+      return new CatalogProcessingError(
+        "DATABASE_UNAVAILABLE",
+        "O banco de dados está indisponível no momento.",
+        503,
+        true,
+      );
+    }
+
+    return new CatalogProcessingError(
+      "DATABASE_ERROR",
+      "Erro ao acessar o banco de dados.",
+      500,
+      false,
+    );
+  }
+
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return new CatalogProcessingError(
+      "DATABASE_UNAVAILABLE",
+      "O banco de dados está indisponível no momento.",
+      503,
+      true,
+    );
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return new CatalogProcessingError(
+      "DATABASE_VALIDATION_ERROR",
+      "Dados inválidos para gravação no banco.",
+      500,
+      false,
+    );
+  }
+
+  if (
+    lowerMessage.includes("multipart") ||
+    lowerMessage.includes("formdata") ||
+    lowerMessage.includes("form data") ||
+    lowerMessage.includes("failed to parse body")
+  ) {
+    return new CatalogProcessingError(
+      "INVALID_MULTIPART_FORM_DATA",
+      "O corpo multipart/form-data é inválido.",
+      400,
+      false,
+    );
+  }
+
+  if (
+    status === 413 ||
+    lowerMessage.includes("body exceeded") ||
+    lowerMessage.includes("request entity too large") ||
+    lowerMessage.includes("payload too large")
+  ) {
+    return new CatalogProcessingError(
+      "FILE_TOO_LARGE",
+      "O arquivo excede o limite máximo permitido.",
+      413,
+      false,
+    );
+  }
+
+  if (
+    status === 429 ||
+    message.includes("429") ||
+    lowerMessage.includes("quota") ||
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("resource_exhausted")
+  ) {
     return new CatalogProcessingError(
       "GEMINI_QUOTA_EXCEEDED",
       "A cota do Gemini foi excedida.",
@@ -90,11 +186,44 @@ export function mapCatalogProcessingError(error: unknown) {
     );
   }
 
-  if (message.includes("503") || lowerMessage.includes("unavailable")) {
+  if (
+    status === 503 ||
+    message.includes("503") ||
+    lowerMessage.includes("unavailable") ||
+    lowerMessage.includes("overloaded") ||
+    lowerMessage.includes("temporarily unavailable")
+  ) {
     return new CatalogProcessingError(
       "GEMINI_UNAVAILABLE",
       "O Gemini está indisponível no momento.",
       503,
+      true,
+    );
+  }
+
+  if (
+    status === 400 ||
+    lowerMessage.includes("invalid argument") ||
+    lowerMessage.includes("unsupported mime") ||
+    lowerMessage.includes("invalid mime")
+  ) {
+    return new CatalogProcessingError(
+      "GEMINI_INVALID_REQUEST",
+      "O Gemini recusou o arquivo ou os parâmetros enviados.",
+      400,
+      false,
+    );
+  }
+
+  if (
+    name.includes("GoogleGenerativeAI") ||
+    lowerMessage.includes("gemini") ||
+    lowerMessage.includes("generative")
+  ) {
+    return new CatalogProcessingError(
+      "GEMINI_ERROR",
+      "Erro ao processar o vídeo no Gemini.",
+      502,
       true,
     );
   }
