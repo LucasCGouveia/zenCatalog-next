@@ -17,23 +17,45 @@ function getString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+type UploadedFileEntry = {
+  arrayBuffer(): Promise<ArrayBuffer>;
+  size: number;
+  type: string;
+  name?: string;
+};
+
+function isUploadedFileEntry(value: FormDataEntryValue | null): value is UploadedFileEntry {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function" &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "type" in value &&
+    typeof value.type === "string"
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const user = await authenticateN8nCatalogUser(request);
     const formData = await request.formData();
-    const file = formData.get("file");
+    const fileEntry = formData.get("file");
     const driveFileId = getString(formData, "driveFileId");
     const originalName = getString(formData, "originalName");
     const declaredMimeType = getString(formData, "mimeType");
 
-    if (!(file instanceof File)) {
+    if (!isUploadedFileEntry(fileEntry)) {
       throw new CatalogProcessingError(
         "FILE_REQUIRED",
-        "O campo multipart file é obrigatório.",
+        "Arquivo de vídeo não recebido.",
         400,
         false,
       );
     }
+
+    const uploadedFile = fileEntry;
 
     if (!driveFileId) {
       throw new CatalogProcessingError(
@@ -44,8 +66,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const mimeType = declaredMimeType || file.type;
-    const receivedMimeType = file.type || mimeType;
+    const mimeType = declaredMimeType || uploadedFile.type;
+    const receivedMimeType = uploadedFile.type || mimeType;
 
     if (
       !ALLOWED_N8N_VIDEO_MIME_TYPES.has(mimeType) ||
@@ -59,7 +81,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > MAX_N8N_VIDEO_UPLOAD_BYTES) {
+    if (uploadedFile.size > MAX_N8N_VIDEO_UPLOAD_BYTES) {
       throw new CatalogProcessingError(
         "FILE_TOO_LARGE",
         "O arquivo excede o limite máximo de 50 MB.",
@@ -68,11 +90,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = Buffer.from(await uploadedFile.arrayBuffer());
     const result = await processCatalogVideo({
       buffer,
-      fileName: file.name || originalName || "video",
-      driveOriginalName: originalName || file.name || "video",
+      fileName: uploadedFile.name || originalName || "video",
+      driveOriginalName: originalName || uploadedFile.name || "video",
       mimeType,
       driveFileId,
       description: getString(formData, "description") || undefined,
