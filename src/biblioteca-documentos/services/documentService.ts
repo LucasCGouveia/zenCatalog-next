@@ -2,11 +2,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import ExcelJS from "exceljs";
 import mammoth from "mammoth";
 import pdf from "pdf-parse/lib/pdf-parse.js";
-
-const MAX_EXTRACTED_CHARACTERS = 1_000_000;
-const CHUNK_SIZE = 9_000;
-const CHUNK_OVERLAP = 900;
-const MAX_CHUNKS = 130;
+import {
+  DOCUMENT_CHUNK_OVERLAP,
+  DOCUMENT_CHUNK_SIZE,
+  MAX_DOCUMENT_CHUNKS,
+  MAX_EXTRACTED_CHARACTERS,
+} from "../constants";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -124,16 +125,16 @@ export function splitDocumentIntoChunks(text: string) {
 
   for (
     let start = 0;
-    start < text.length && chunks.length < MAX_CHUNKS;
-    start += CHUNK_SIZE - CHUNK_OVERLAP
+    start < text.length && chunks.length < MAX_DOCUMENT_CHUNKS;
+    start += DOCUMENT_CHUNK_SIZE - DOCUMENT_CHUNK_OVERLAP
   ) {
-    let end = Math.min(start + CHUNK_SIZE, text.length);
+    let end = Math.min(start + DOCUMENT_CHUNK_SIZE, text.length);
     if (end < text.length) {
       const boundary = Math.max(
         text.lastIndexOf("\n\n", end),
         text.lastIndexOf(". ", end),
       );
-      if (boundary > start + CHUNK_SIZE / 2) end = boundary + 1;
+      if (boundary > start + DOCUMENT_CHUNK_SIZE / 2) end = boundary + 1;
     }
 
     const chunk = text.slice(start, end).trim();

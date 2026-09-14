@@ -10,8 +10,12 @@ import {
   supportedDocumentTypes,
 } from "@/src/biblioteca-documentos/services/documentService";
 import { setDocumentChunkEmbedding } from "@/lib/vector";
+import {
+  DOCUMENT_FILE_TOO_LARGE_MESSAGE,
+  MAX_DOCUMENT_REQUEST_SIZE_BYTES,
+  isDocumentFileSizeAllowed,
+} from "@/src/biblioteca-documentos/constants";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -88,13 +92,27 @@ export async function POST(request: Request) {
   let documentId: string | null = null;
 
   try {
+    const contentLength = Number(request.headers.get("content-length"));
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > MAX_DOCUMENT_REQUEST_SIZE_BYTES
+    ) {
+      return NextResponse.json(
+        { error: DOCUMENT_FILE_TOO_LARGE_MESSAGE },
+        { status: 413 },
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
     if (!isUploadedFile(file)) {
       return NextResponse.json({ error: "Selecione um arquivo." }, { status: 400 });
     }
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: "O arquivo deve ter no máximo 10 MB." }, { status: 400 });
+    if (!isDocumentFileSizeAllowed(file.size)) {
+      return NextResponse.json(
+        { error: DOCUMENT_FILE_TOO_LARGE_MESSAGE },
+        { status: 413 },
+      );
     }
     const mimeType = resolveMimeType(file);
     if (!supportedDocumentTypes.has(mimeType)) {

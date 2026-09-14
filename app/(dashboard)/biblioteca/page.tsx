@@ -17,6 +17,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  DOCUMENT_FILE_SIZE_HINT,
+  MAX_DOCUMENT_FILE_SIZE_MB,
+  isDocumentFileSizeAllowed,
+} from "@/src/biblioteca-documentos/constants";
 
 type LibraryDocument = {
   id: string;
@@ -88,8 +93,10 @@ export default function BibliotecaPage() {
 
   async function uploadFile(file?: File) {
     if (!file || uploading) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("O arquivo deve ter no máximo 10 MB.");
+    if (!isDocumentFileSizeAllowed(file.size)) {
+      toast.error(
+        `O arquivo deve ter no máximo ${MAX_DOCUMENT_FILE_SIZE_MB} MB.`,
+      );
       return;
     }
 
@@ -233,7 +240,7 @@ export default function BibliotecaPage() {
           {uploading ? "Processando documento..." : "Envie um novo documento"}
         </h2>
         <p className="mt-2 max-w-xl text-sm text-slate-500">
-          PDF, DOCX, XLSX, CSV, TXT, Markdown ou imagem. Máximo de 10 MB.
+          PDF, DOCX, XLSX, CSV, TXT, Markdown ou imagem. {DOCUMENT_FILE_SIZE_HINT}
         </p>
       </label>
 
